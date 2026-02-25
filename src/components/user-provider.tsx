@@ -42,9 +42,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
           .eq("id", user.id)
           .single()
         
-        console.log("Profile fetch result:", profile, error)
+        console.log("Profile fetch result:", profile, "error:", error)
         if (profile) {
           setProfile(profile as Profile)
+        } else if (error) {
+          console.error("Error fetching profile:", error)
         }
       }
       setLoading(false)
