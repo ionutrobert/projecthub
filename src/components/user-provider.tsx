@@ -35,12 +35,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
       setUser(user)
 
       if (user) {
-        const { data: profile } = await supabase
+        console.log("Fetching profile for user:", user.id)
+        const { data: profile, error } = await supabase
           .from("profiles")
           .select("*")
           .eq("id", user.id)
           .single()
         
+        console.log("Profile fetch result:", profile, error)
         if (profile) {
           setProfile(profile as Profile)
         }
@@ -50,10 +52,20 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
     getUser()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null)
       if (!session?.user) {
         setProfile(null)
+      } else {
+        // Re-fetch profile on auth change
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", session.user.id)
+          .single()
+        if (profile) {
+          setProfile(profile as Profile)
+        }
       }
     })
 
