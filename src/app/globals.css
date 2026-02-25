@@ -1,26 +1,217 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  
+  --radius-lg: 0.75rem;
+  --radius-md: 0.5rem;
+  --radius-sm: 0.25rem;
+  
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Light theme - Obsidian inspired - clean gray/white */
+  --background: 240 10% 98%;
+  --foreground: 240 10% 5%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 5%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 5%;
+  --primary: 262 83% 58%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 5% 96%;
+  --secondary-foreground: 240 10% 10%;
+  --muted: 240 5% 96%;
+  --muted-foreground: 240 4% 46%;
+  --accent: 262 83% 58%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 240 5% 85%;
+  --border-bright: 240 5% 70%;
+  --input: 240 5% 85%;
+  --ring: 262 83% 58%;
+  --glass-blur: 24px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+.dark {
+  /* Dark theme - Obsidian OS inspired */
+  --background: 240 15% 4%;
+  --foreground: 0 0% 95%;
+  --card: 240 15% 8%;
+  --card-foreground: 0 0% 95%;
+  --popover: 240 15% 6%;
+  --popover-foreground: 0 0% 95%;
+  --primary: 262 83% 65%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 15% 10%;
+  --secondary-foreground: 0 0% 90%;
+  --muted: 240 15% 10%;
+  --muted-foreground: 240 5% 55%;
+  --accent: 262 83% 65%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 62% 40%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 240 15% 15%;
+  --border-bright: 240 15% 25%;
+  --input: 240 15% 15%;
+  --ring: 262 83% 65%;
+  --glass-blur: 24px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: hsl(var(--border));
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Glassmorphism utilities - Obsidian style */
+.glass {
+  background: hsl(var(--card));
+  backdrop-filter: blur(var(--glass-blur, 24px));
+  border: 1px solid hsl(var(--border));
+  border-radius: 1.5rem;
+}
+
+.glass-strong {
+  background: hsl(var(--card));
+  backdrop-filter: blur(32px);
+  border: 1px solid hsl(var(--border-bright, 0 0% 100% / 0.15));
+  border-radius: 1.5rem;
+}
+
+/* Subtle gradient backgrounds */
+.gradient-bg {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--background)) 0%,
+    hsl(240 6% 95%) 50%,
+    hsl(var(--background)) 100%
+  );
+}
+
+.dark .gradient-bg {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--background)) 0%,
+    hsl(0 0% 3%) 50%,
+    hsl(var(--background)) 100%
+  );
+}
+
+/* Diffusion orb effect - Obsidian style */
+.diffusion-orb {
+  position: fixed;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.6;
+}
+
+.orb-1 {
+  top: -200px;
+  right: -100px;
+}
+
+.orb-2 {
+  bottom: -200px;
+  left: -100px;
+}
+
+/* Status badge styles */
+.status-active {
+  background: hsl(160 84% 45% / 0.1);
+  color: hsl(160 84% 40%);
+  border: 1px solid hsl(160 84% 45% / 0.2);
+}
+
+.dark .status-active {
+  background: hsl(160 84% 45% / 0.15);
+  color: hsl(160 84% 55%);
+  border: 1px solid hsl(160 84% 45% / 0.3);
+}
+
+.status-on-hold {
+  background: hsl(38 92% 50% / 0.1);
+  color: hsl(38 92% 45%);
+  border: 1px solid hsl(38 92% 50% / 0.2);
+}
+
+.dark .status-on-hold {
+  background: hsl(38 92% 50% / 0.15);
+  color: hsl(38 92% 60%);
+  border: 1px solid hsl(38 92% 50% / 0.3);
+}
+
+.status-completed {
+  background: hsl(217 91% 60% / 0.1);
+  color: hsl(217 91% 55%);
+  border: 1px solid hsl(217 91% 60% / 0.2);
+}
+
+.dark .status-completed {
+  background: hsl(217 91% 60% / 0.15);
+  color: hsl(217 91% 70%);
+  border: 1px solid hsl(217 91% 60% / 0.3);
+}
+
+/* Smooth transitions */
+.transition-smooth {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Card hover effect */
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px hsl(var(--foreground) / 0.08);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
 }
