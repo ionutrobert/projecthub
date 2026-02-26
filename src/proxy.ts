@@ -2,6 +2,15 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  // Public routes that don't require authentication
+  const publicRoutes = ['/auth/login', '/auth/callback', '/auth/auth-code-error']
+
+  const isPublicRoute = publicRoutes.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`)
+  )
+
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -15,7 +24,9 @@ export async function proxy(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          cookiesToSet.forEach(({ name, value, options }) => {
+            request.cookies.set(name, value)
+          })
           supabaseResponse = NextResponse.next({
             request,
           })
@@ -27,15 +38,18 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  let user = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch {
+    // Fallback for intermittent auth timeouts: use cookie-backed session.
+    const { data } = await supabase.auth.getSession()
+    user = data.session?.user ?? null
+  }
 
-  const { pathname } = request.nextUrl
-
-  // Public routes that don't require authentication
-  const publicRoutes = ['/auth/login', '/auth/callback', '/']
-  
-  // If user is not logged in and trying to access protected route
-  if (!user && !publicRoutes.includes(pathname)) {
+  // If user is not logged in and route is protected, redirect to login
+  if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth/login'
     return NextResponse.redirect(url)
@@ -54,11 +68,12 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
+     * Match all request paths except for:
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
+     * - api routes (they handle auth themselves)
      */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/).*)',
   ],
 }
