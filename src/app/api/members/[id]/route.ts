@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { revalidateTag } from "next/cache"
 import { createClient as createSupabaseAdminClient } from "@supabase/supabase-js"
 import { z } from "zod"
 
@@ -70,6 +71,10 @@ export async function PUT(
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  revalidateTag("members", "max")
+  revalidateTag("team", "max")
+  revalidateTag("dashboard", "max")
+
   return NextResponse.json(data)
 }
 
@@ -124,6 +129,10 @@ export async function DELETE(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  revalidateTag("members", "max")
+  revalidateTag("team", "max")
+  revalidateTag("dashboard", "max")
 
   return NextResponse.json({ success: true })
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from "react"
 import { useUser } from "@/components/user-provider"
 import { createClient } from "@/lib/supabase/client"
 
@@ -90,9 +90,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [gradientEnabled, setGradientEnabledState] = useState(getInitialGradientEnabled)
   const [microAnimations, setMicroAnimationsState] = useState(getInitialMicroAnimations)
 
-  const supabase = typeof window !== "undefined" ? createClient() : null
+  const supabase = useMemo(() => {
+    if (typeof window === "undefined") return null
+    return createClient()
+  }, [])
 
-  const applyAccentColor = (color: string) => {
+  const applyAccentColor = useCallback((color: string) => {
     if (typeof document === "undefined") return
     const root = document.documentElement
     const hsl = hexToHSL(color)
@@ -103,9 +106,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       root.style.setProperty("--accent-foreground", "0 0% 100%")
       root.style.setProperty("--primary-foreground", "0 0% 100%")
     }
-  }
+  }, [])
 
-  const persistToDB = async (updates: Record<string, unknown>) => {
+  const persistToDB = useCallback(async (updates: Record<string, unknown>) => {
     if (!user?.id || !supabase) return
     const { error } = await supabase
       .from("profiles")
@@ -114,7 +117,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     if (error) {
       console.error('Failed to save preference:', error.message)
     }
-  }
+  }, [supabase, user])
 
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme)
@@ -123,7 +126,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       document.documentElement.classList.remove("light", "dark")
       document.documentElement.classList.add(newTheme)
     }
-    persistToDB({ theme_preference: newTheme })
+    void persistToDB({ theme_preference: newTheme })
   }
 
   const setAccentColor = (color: string) => {
@@ -132,7 +135,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("projecthub-accent", color)
     }
     applyAccentColor(color)
-    persistToDB({ accent_color: color })
+    void persistToDB({ accent_color: color })
   }
 
   const setGradientEnabled = (enabled: boolean) => {
@@ -141,7 +144,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("projecthub-gradient", String(enabled))
       document.documentElement.dataset.gradient = enabled ? "true" : "false"
     }
-    persistToDB({ theme_gradient: enabled })
+    void persistToDB({ theme_gradient: enabled })
   }
 
   const setMicroAnimations = (enabled: boolean) => {
@@ -150,7 +153,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("projecthub-micro", String(enabled))
       document.documentElement.dataset.micro = enabled ? "true" : "false"
     }
-    persistToDB({ micro_animations: enabled })
+    void persistToDB({ micro_animations: enabled })
   }
 
   useEffect(() => {
@@ -181,7 +184,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    if (!mounted || !profile || !user?.id || !supabase) return
+    if (!mounted || !profile) return
 
     const updates: Record<string, unknown> = {}
 
@@ -202,9 +205,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
 
     if (Object.keys(updates).length > 0) {
-      persistToDB(updates)
+      void persistToDB(updates)
     }
-  }, [profile, mounted, theme, accentColor, gradientEnabled, microAnimations, user?.id, supabase])
+  }, [profile, mounted, theme, accentColor, gradientEnabled, microAnimations, persistToDB])
 
   return (
     <ThemeContext.Provider

@@ -13,6 +13,7 @@ const widgetIdSchema = z.enum([
   "todoTasks",
   "inProgressTasks",
   "overdueTasks",
+  "teamMembers",
   "recentProjects",
 ]);
 
@@ -32,14 +33,16 @@ const updatePreferencesSchema = z.object({
 
 const FALLBACK_PREFERENCES = {
   layout: [
-    { id: "totalProjects", size: "md" },
+    { id: "totalProjects", size: "sm" },
     { id: "activeProjects", size: "sm" },
     { id: "completedProjects", size: "sm" },
-    { id: "totalBudget", size: "md" },
+    { id: "totalBudget", size: "sm" },
     { id: "todoTasks", size: "sm" },
     { id: "inProgressTasks", size: "sm" },
     { id: "overdueTasks", size: "sm" },
+    { id: "teamMembers", size: "sm" },
     { id: "onHoldProjects", size: "sm" },
+    { id: "recentProjects", size: "md" },
   ],
   hiddenWidgetIds: [],
 };

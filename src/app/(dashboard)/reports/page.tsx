@@ -3,12 +3,10 @@
 import { useEffect, useMemo, useState } from "react"
 import {
   BarChart3,
-  Calendar,
   CheckCircle2,
   Clock,
   Download,
   Loader2,
-  TrendingUp,
   Users,
 } from "lucide-react"
 
@@ -49,6 +47,7 @@ type Project = {
   status: "active" | "on-hold" | "completed"
   deadline: string | null
   budget: number | null
+  client_name?: string | null
   created_at?: string
 }
 
@@ -67,12 +66,18 @@ type Member = {
   role: string
 }
 
+type Client = {
+  id: string
+  name: string
+}
+
 type TimeRange = "7d" | "30d" | "90d" | "all"
 
 export default function ReportsPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [members, setMembers] = useState<Member[]>([])
+  const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [timeRange, setTimeRange] = useState<TimeRange>("30d")
 
@@ -82,16 +87,18 @@ export default function ReportsPage() {
     const load = async () => {
       setLoading(true)
       try {
-        const [projectsRes, tasksRes, membersRes] = await Promise.all([
+        const [projectsRes, tasksRes, membersRes, clientsRes] = await Promise.all([
           fetch("/api/projects", { cache: "no-store" }),
           fetch("/api/tasks", { cache: "no-store" }),
           fetch("/api/members", { cache: "no-store" }),
+          fetch("/api/clients", { cache: "no-store" }),
         ])
 
-        const [projectsData, tasksData, membersData] = await Promise.all([
+        const [projectsData, tasksData, membersData, clientsData] = await Promise.all([
           projectsRes.json(),
           tasksRes.json(),
           membersRes.json(),
+          clientsRes.json(),
         ])
 
         if (!mounted) return
@@ -99,11 +106,13 @@ export default function ReportsPage() {
         setProjects(Array.isArray(projectsData) ? projectsData : [])
         setTasks(Array.isArray(tasksData) ? tasksData : [])
         setMembers(Array.isArray(membersData) ? membersData : [])
+        setClients(Array.isArray(clientsData) ? clientsData : [])
       } catch {
         if (!mounted) return
         setProjects([])
         setTasks([])
         setMembers([])
+        setClients([])
       } finally {
         if (mounted) {
           setLoading(false)
@@ -118,21 +127,31 @@ export default function ReportsPage() {
     }
   }, [])
 
-  const filterByTimeRange = <T extends { created_at?: string }>(items: T[]): T[] => {
-    if (timeRange === "all") return items
-    
+  const filteredProjects = useMemo(() => {
+    if (timeRange === "all") return projects
+
     const now = new Date()
     const days = timeRange === "7d" ? 7 : timeRange === "30d" ? 30 : 90
     const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
-    
-    return items.filter((item) => {
-      if (!item.created_at) return true
-      return new Date(item.created_at) >= cutoff
-    })
-  }
 
-  const filteredProjects = useMemo(() => filterByTimeRange(projects), [projects, timeRange])
-  const filteredTasks = useMemo(() => filterByTimeRange(tasks), [tasks, timeRange])
+    return projects.filter((project) => {
+      if (!project.created_at) return true
+      return new Date(project.created_at) >= cutoff
+    })
+  }, [projects, timeRange])
+
+  const filteredTasks = useMemo(() => {
+    if (timeRange === "all") return tasks
+
+    const now = new Date()
+    const days = timeRange === "7d" ? 7 : timeRange === "30d" ? 30 : 90
+    const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+
+    return tasks.filter((task) => {
+      if (!task.created_at) return true
+      return new Date(task.created_at) >= cutoff
+    })
+  }, [tasks, timeRange])
 
   const metrics = useMemo(() => {
     const totalProjects = filteredProjects.length
@@ -158,6 +177,8 @@ export default function ReportsPage() {
       completed: completedProjects,
     }
 
+    const projectsWithClients = filteredProjects.filter((project) => !!project.client_name).length
+
     return {
       totalProjects,
       activeProjects,
@@ -170,6 +191,7 @@ export default function ReportsPage() {
       taskCompletion,
       taskByPriority,
       projectByStatus,
+      projectsWithClients,
     }
   }, [filteredProjects, filteredTasks])
 
@@ -257,8 +279,6 @@ export default function ReportsPage() {
     URL.revokeObjectURL(url)
   }
 
-  const timeRangeLabel = timeRange === "7d" ? "Last 7 Days" : timeRange === "30d" ? "Last 30 Days" : timeRange === "90d" ? "Last 90 Days" : "All Time"
-
   return (
     <div className="space-y-4 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -301,7 +321,7 @@ export default function ReportsPage() {
         </Card>
       ) : (
         <>
-          <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
             <Card className="glass card-hover py-3">
               <CardHeader className="pb-1">
                 <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
@@ -354,6 +374,19 @@ export default function ReportsPage() {
                 </p>
               </CardContent>
             </Card>
+            <Card className="glass card-hover py-3">
+              <CardHeader className="pb-1">
+                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <Users className="h-3 w-3" /> Clients
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="text-2xl font-bold">{clients.length}</div>
+                <p className="text-xs text-muted-foreground">
+                  {metrics.projectsWithClients} projects linked
+                </p>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
@@ -374,7 +407,7 @@ export default function ReportsPage() {
                           outerRadius={60}
                           paddingAngle={5}
                           dataKey="value"
-                          label={({ name, percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
+                          label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
                           labelLine={false}
                         >
                           {taskStatusData.map((entry, index) => (

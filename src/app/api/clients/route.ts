@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { z } from "zod";
 
 import { createClient } from "@/lib/supabase/server";
@@ -85,6 +86,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  revalidateTag("clients", "max");
+  revalidateTag("projects", "max");
+  revalidateTag("reports", "max");
 
   return NextResponse.json(data, { status: 201 });
 }

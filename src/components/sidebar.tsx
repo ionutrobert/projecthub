@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, FolderKanban, CheckSquare, Settings, Users, BarChart3, LogOut, X, PanelLeftClose, PanelLeft, ChevronDown } from "lucide-react"
+import { LayoutDashboard, FolderKanban, Building2, CheckSquare, Settings, Users, BarChart3, LogOut, X, PanelLeftClose, PanelLeft, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useUser } from "@/components/user-provider"
 import { useNavStyle } from "@/components/nav-style-provider"
@@ -12,6 +12,7 @@ import { useState, useRef, useEffect } from "react"
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Projects", href: "/projects", icon: FolderKanban },
+  { name: "Clients", href: "/clients", icon: Building2 },
   { name: "Tasks", href: "/tasks", icon: CheckSquare },
   { name: "Team", href: "/team", icon: Users },
   { name: "Reports", href: "/reports", icon: BarChart3 },
@@ -19,7 +20,7 @@ const navigation = [
 
 export function Sidebar() {
   const pathname = usePathname()
-  const { profile, user, impersonation, signOut } = useUser()
+  const { profile, user, impersonation, loading, signOut } = useUser()
   const { mobileMenuOpen, setMobileMenuOpen, sidebarCollapsed, setSidebarCollapsed } = useNavStyle()
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
@@ -175,7 +176,9 @@ export function Sidebar() {
                 <>
                   <div className="flex-1 overflow-hidden min-w-0 text-left">
                     <p className="truncate text-sm font-medium">{displayName}</p>
-                    <p className="truncate text-xs text-muted-foreground capitalize">{profile?.role || "viewer"}</p>
+                    <p className="truncate text-xs text-muted-foreground capitalize">
+                      {loading ? "Loading role..." : profile?.role || "No role"}
+                    </p>
                   </div>
                   <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", userMenuOpen && "rotate-180")} />
                 </>

@@ -162,8 +162,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setUser(initialUser)
         setImpersonation(null)
 
-        // Unblock UI immediately once auth state is resolved.
-        setLoading(false)
         setInitialized(true)
 
         if (initialUser) {
@@ -171,8 +169,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
           if (!hydrated) {
             await loadProfile(initialUser.id)
           }
+          if (isMounted) {
+            setLoading(false)
+          }
         } else {
           setProfile(null)
+          setLoading(false)
         }
       } catch {
         if (!isMounted) return
@@ -190,17 +192,21 @@ export function UserProvider({ children }: { children: ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!isMounted) return
 
-      setLoading(false)
+      setLoading(true)
       const nextUser = session?.user ?? null
       setUser(nextUser)
 
       if (!nextUser) {
         setProfile(null)
         setImpersonation(null)
+        setLoading(false)
       } else {
         const hydrated = await hydrateFromServerAuth()
         if (!hydrated) {
           await loadProfile(nextUser.id)
+        }
+        if (isMounted) {
+          setLoading(false)
         }
       }
     })

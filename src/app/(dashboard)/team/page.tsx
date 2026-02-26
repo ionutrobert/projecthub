@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Eye, Mail, Pencil, Plus, Search, Shield, Trash2, UserPlus, Users } from "lucide-react"
 
 import MemberAvatar from "@/components/member-avatar"
@@ -8,6 +9,14 @@ import { useUser } from "@/components/user-provider"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Table,
   TableBody,
@@ -26,9 +35,26 @@ type Member = {
   role: string
 }
 
+type Project = {
+  id: string
+  name: string
+  project_members?: Array<{
+    members?: {
+      id?: string
+    } | null
+  }>
+}
+
+type Task = {
+  id: string
+  assignee_member_id: string | null
+  status: "todo" | "in-progress" | "done"
+}
+
 const ROLE_OPTIONS = ["admin", "member", "viewer", "developer", "designer", "pm", "accountant"]
 
 export default function TeamPage() {
+  const router = useRouter()
   const { profile, impersonation, clearImpersonation, loading: userLoading } = useUser()
   const currentRole = profile?.role || "viewer"
   const actualRole = profile?.actual_role || currentRole
@@ -36,6 +62,8 @@ export default function TeamPage() {
   const isAdmin = actualRole === "admin"
 
   const [members, setMembers] = useState<Member[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
+  const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -51,6 +79,7 @@ export default function TeamPage() {
   const [impersonatingMemberId, setImpersonatingMemberId] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [roleFilter, setRoleFilter] = useState("__all__")
+  const [previewMember, setPreviewMember] = useState<Member | null>(null)
 
   const dedupedMembers = useMemo(() => {
     return members.filter((member, index, all) => {
@@ -90,21 +119,53 @@ export default function TeamPage() {
     }
   }, [dedupedMembers])
 
+  const getProjectCountForMember = (memberId: string) => {
+    return projects.filter((project) =>
+      (project.project_members || []).some((pm) => pm.members?.id === memberId),
+    ).length
+  }
+
+  const getTaskStatsForMember = (memberId: string) => {
+    const memberTasks = tasks.filter((task) => task.assignee_member_id === memberId)
+    return {
+      total: memberTasks.length,
+      inProgress: memberTasks.filter((task) => task.status === "in-progress").length,
+      done: memberTasks.filter((task) => task.status === "done").length,
+    }
+  }
+
   const fetchMembers = async () => {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch("/api/members", { cache: "no-store" })
-      const data = await response.json()
-      if (!response.ok) {
-        setError(data?.error || "Failed to load team members")
+      const [membersResponse, projectsResponse, tasksResponse] = await Promise.all([
+        fetch("/api/members", { cache: "no-store" }),
+        fetch("/api/projects", { cache: "no-store" }),
+        fetch("/api/tasks", { cache: "no-store" }),
+      ])
+
+      const [membersData, projectsData, tasksData] = await Promise.all([
+        membersResponse.json().catch(() => []),
+        projectsResponse.json().catch(() => []),
+        tasksResponse.json().catch(() => []),
+      ])
+
+      if (!membersResponse.ok) {
+        setError(membersData?.error || "Failed to load team members")
         setMembers([])
+        setProjects([])
+        setTasks([])
         return
       }
-      setMembers(Array.isArray(data) ? data : [])
+
+      setMembers(Array.isArray(membersData) ? membersData : [])
+      setProjects(Array.isArray(projectsData) ? projectsData : [])
+      setTasks(Array.isArray(tasksData) ? tasksData : [])
     } catch {
       setError("Failed to load team members")
       setMembers([])
+      setProjects([])
+      setTasks([])
     } finally {
       setLoading(false)
     }
@@ -485,6 +546,18 @@ export default function TeamPage() {
                           </TableCell>
                           <TableCell className="py-2">
                             <div className="flex items-center justify-end gap-2">
+                              {isAdmin && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 px-2 text-xs"
+                                  onClick={() => setPreviewMember(member)}
+                                >
+                                  <Eye className="mr-1 h-3.5 w-3.5" />
+                                  Preview
+                                </Button>
+                              )}
+
                               {canEdit && (
                                 <Button
                                   variant={isRowEditing ? "secondary" : "outline"}
@@ -545,6 +618,79 @@ export default function TeamPage() {
           </Card>
         </div>
       )}
+
+      <Dialog open={!!previewMember} onOpenChange={(open) => !open && setPreviewMember(null)}>
+        <DialogContent className="sm:max-w-2xl">
+          {previewMember && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <MemberAvatar
+                    name={previewMember.name}
+                    email={previewMember.email}
+                    userId={previewMember.user_id || null}
+                    avatarUrl={previewMember.avatar_url || null}
+                    sizeClass="h-8 w-8"
+                    textClass="text-[11px]"
+                  />
+                  <span>{previewMember.name}</span>
+                </DialogTitle>
+                <DialogDescription>
+                  Quick member overview. Open full profile for deeper details and admin edits.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="grid gap-3 py-2 sm:grid-cols-3">
+                <Card>
+                  <CardContent className="p-3">
+                    <p className="text-xs text-muted-foreground">Projects assigned</p>
+                    <p className="text-xl font-semibold">{getProjectCountForMember(previewMember.id)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-3">
+                    <p className="text-xs text-muted-foreground">Tasks assigned</p>
+                    <p className="text-xl font-semibold">{getTaskStatsForMember(previewMember.id).total}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-3">
+                    <p className="text-xs text-muted-foreground">Tasks done</p>
+                    <p className="text-xl font-semibold">{getTaskStatsForMember(previewMember.id).done}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-3 text-sm">
+                <p>
+                  <span className="text-muted-foreground">Email:</span> {previewMember.email || "No email"}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Role:</span> <span className="capitalize">{previewMember.role}</span>
+                </p>
+                <p>
+                  <span className="text-muted-foreground">In progress tasks:</span> {getTaskStatsForMember(previewMember.id).inProgress}
+                </p>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setPreviewMember(null)}>
+                  Close
+                </Button>
+                <Button
+                  onClick={() => {
+                    const id = previewMember.id
+                    setPreviewMember(null)
+                    router.push(`/team/${id}`)
+                  }}
+                >
+                  View full profile
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

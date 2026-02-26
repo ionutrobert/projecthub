@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import { getRoleContext } from "@/lib/server-authz";
@@ -15,8 +16,8 @@ const createProjectSchema = z.object({
   name: z.string().trim().min(1, "Project name is required"),
   status: projectStatusSchema,
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-  deadline: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  budget: z.number().nonnegative(),
+  deadline: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  budget: z.number().nonnegative().nullable().optional(),
   member_ids: z.array(z.string().uuid()).optional().default([]),
   description: z.string().trim().nullable().optional(),
   client_name: z.string().trim().nullable().optional(),
@@ -232,8 +233,8 @@ export async function POST(request: NextRequest) {
       name,
       status,
       start_date: start_date || null,
-      deadline,
-      budget,
+      deadline: deadline || null,
+      budget: budget ?? null,
       description,
       client_name: client_name || null,
       labels: labels.length > 0 ? labels : null,
@@ -267,6 +268,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: insError.message }, { status: 500 });
     }
   }
+
+  revalidateTag("projects", "max");
+  revalidateTag("dashboard", "max");
+  revalidateTag("reports", "max");
+  revalidateTag("team", "max");
 
   return NextResponse.json(project, { status: 201 });
 }

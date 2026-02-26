@@ -3,7 +3,11 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { getRoleContext } from "@/lib/server-authz"
 
-export const dynamic = "force-dynamic"
+const noStoreHeaders = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  Pragma: "no-cache",
+  Expires: "0",
+}
 
 export async function GET() {
   const supabase = await createClient()
@@ -13,7 +17,7 @@ export async function GET() {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    return NextResponse.json({ user: null, profile: null }, { status: 200 })
+    return NextResponse.json({ user: null, profile: null }, { status: 200, headers: noStoreHeaders })
   }
 
   const { data: profile } = await supabase
@@ -64,6 +68,6 @@ export async function GET() {
 
   return NextResponse.json(
     { user, profile: shapedProfile, impersonation: roleContext.impersonation },
-    { status: 200 }
+    { status: 200, headers: noStoreHeaders }
   )
 }

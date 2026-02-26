@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils"
 const navigation = [
   { name: "Dashboard", href: "/", icon: null },
   { name: "Projects", href: "/projects", icon: null },
+  { name: "Clients", href: "/clients", icon: null },
   { name: "Tasks", href: "/tasks", icon: null },
   { name: "Team", href: "/team", icon: null },
   { name: "Reports", href: "/reports", icon: null },
@@ -78,7 +79,7 @@ function getDeadlineTone(deadline: string | null) {
 
 export function Header() {
   const { theme, setTheme } = useTheme()
-  const { navStyle, mobileMenuOpen, toggleMobileMenu, sidebarCollapsed, setSidebarCollapsed } = useNavStyle()
+  const { navStyle, mobileMenuOpen, toggleMobileMenu, sidebarCollapsed } = useNavStyle()
   const { user, profile, impersonation, loading, signOut } = useUser()
   const router = useRouter()
   const pathname = usePathname()

@@ -1,6 +1,30 @@
 import { NextRequest, NextResponse } from "next/server"
+import { revalidateTag } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 import { getRoleContext } from "@/lib/server-authz"
+import { z } from "zod"
+
+const projectStatusSchema = z.enum([
+  "active",
+  "in-progress",
+  "on-hold",
+  "completed",
+  "closed",
+])
+
+const updateProjectSchema = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  status: projectStatusSchema.optional(),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  deadline: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  budget: z.number().nonnegative().nullable().optional(),
+  member_ids: z.array(z.string().uuid()).optional(),
+  description: z.string().trim().nullable().optional(),
+  client_name: z.string().trim().nullable().optional(),
+  labels: z.array(z.string().trim().min(1)).nullable().optional(),
+  color: z.string().trim().nullable().optional(),
+  icon: z.string().trim().nullable().optional(),
+})
 
 export async function GET(
   request: NextRequest,
@@ -57,34 +81,28 @@ export async function PUT(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
-  const body = await request.json()
-  const {
-    name,
-    status,
-    start_date,
-    deadline,
-    budget,
-    member_ids,
-    description,
-    client_name,
-    labels,
-    color,
-    icon,
-  } = body
+  const parsed = updateProjectSchema.safeParse(await request.json())
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid project payload" }, { status: 400 })
+  }
+
+  const payload = parsed.data
 
   const { data: project, error } = await supabase
     .from("projects")
     .update({
-      name,
-      status,
-      start_date: start_date || null,
-      deadline,
-      budget,
-      description,
-      client_name: client_name || null,
-      labels: Array.isArray(labels) && labels.length > 0 ? labels : null,
-      color,
-      icon,
+      ...(payload.name !== undefined ? { name: payload.name } : {}),
+      ...(payload.status !== undefined ? { status: payload.status } : {}),
+      ...(payload.start_date !== undefined ? { start_date: payload.start_date || null } : {}),
+      ...(payload.deadline !== undefined ? { deadline: payload.deadline || null } : {}),
+      ...(payload.budget !== undefined ? { budget: payload.budget } : {}),
+      ...(payload.description !== undefined ? { description: payload.description || null } : {}),
+      ...(payload.client_name !== undefined ? { client_name: payload.client_name || null } : {}),
+      ...(payload.labels !== undefined
+        ? { labels: payload.labels && payload.labels.length > 0 ? payload.labels : null }
+        : {}),
+      ...(payload.color !== undefined ? { color: payload.color || null } : {}),
+      ...(payload.icon !== undefined ? { icon: payload.icon || null } : {}),
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
@@ -96,7 +114,7 @@ export async function PUT(
   }
 
   // Replace project_members if provided
-  if (Array.isArray(member_ids)) {
+  if (Array.isArray(payload.member_ids)) {
     // Remove existing
     const { error: delError } = await supabase
       .from("project_members")
@@ -106,14 +124,19 @@ export async function PUT(
       return NextResponse.json({ error: delError.message }, { status: 500 })
     }
     // Insert new
-    if (member_ids.length > 0) {
-      const rows = member_ids.map((mid: string) => ({ project_id: id, member_id: mid }))
+    if (payload.member_ids.length > 0) {
+      const rows = payload.member_ids.map((mid) => ({ project_id: id, member_id: mid }))
       const { error: insError } = await supabase.from("project_members").insert(rows)
       if (insError) {
         return NextResponse.json({ error: insError.message }, { status: 500 })
       }
     }
   }
+
+  revalidateTag("projects", "max")
+  revalidateTag("dashboard", "max")
+  revalidateTag("reports", "max")
+  revalidateTag("team", "max")
 
   return NextResponse.json(project)
 }
@@ -145,6 +168,11 @@ export async function DELETE(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  revalidateTag("projects", "max")
+  revalidateTag("dashboard", "max")
+  revalidateTag("reports", "max")
+  revalidateTag("team", "max")
 
   return NextResponse.json({ success: true })
 }

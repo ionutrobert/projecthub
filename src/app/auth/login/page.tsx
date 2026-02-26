@@ -46,7 +46,7 @@ export default function LoginPage() {
     return () => {
       active = false
     }
-  }, [router])
+  }, [router, supabase])
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
