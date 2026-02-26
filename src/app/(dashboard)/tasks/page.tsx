@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   DndContext,
   DragOverlay,
@@ -88,6 +88,8 @@ type Member = {
   user_id?: string | null
 }
 
+type ListColumnId = "task" | "project" | "status" | "priority" | "assignee" | "dueDate"
+
 const priorityConfig = {
   low: { label: "Low", variant: "secondary" as const },
   medium: { label: "Medium", variant: "outline" as const },
@@ -137,13 +139,14 @@ function getDateKey(date: Date): string {
 interface TaskCardProps {
   task: Task
   projects: Project[]
+  canEdit: boolean
   isDragging?: boolean
   onEdit: () => void
   onDelete: () => void
   onStatusChange: (status: Task["status"]) => void
 }
 
-function TaskCard({ task, projects, isDragging, onEdit, onDelete, onStatusChange }: TaskCardProps) {
+function TaskCard({ task, projects, canEdit, isDragging, onEdit, onDelete, onStatusChange }: TaskCardProps) {
   const {
     attributes,
     listeners,
@@ -151,7 +154,7 @@ function TaskCard({ task, projects, isDragging, onEdit, onDelete, onStatusChange
     transform,
     transition,
     isDragging: isSortableDragging,
-  } = useSortable({ id: task.id })
+  } = useSortable({ id: task.id, disabled: !canEdit })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -170,14 +173,18 @@ function TaskCard({ task, projects, isDragging, onEdit, onDelete, onStatusChange
       )}
     >
       <div className="flex items-start gap-2">
-        <button
-          {...attributes}
-          {...listeners}
-          className="mt-0.5 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
+        {canEdit ? (
+          <button
+            {...attributes}
+            {...listeners}
+            className="mt-0.5 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        ) : (
+          <span className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        )}
         
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
@@ -258,12 +265,13 @@ interface KanbanColumnProps {
   title: string
   tasks: Task[]
   projects: Project[]
+  canEdit: boolean
   onEditTask: (task: Task) => void
   onDeleteTask: (taskId: string) => void
   onStatusChange: (taskId: string, status: Task["status"]) => void
 }
 
-function KanbanColumn({ id, title, tasks, projects, onEditTask, onDeleteTask, onStatusChange }: KanbanColumnProps) {
+function KanbanColumn({ id, title, tasks, projects, canEdit, onEditTask, onDeleteTask, onStatusChange }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id })
   
   return (
@@ -287,6 +295,7 @@ function KanbanColumn({ id, title, tasks, projects, onEditTask, onDeleteTask, on
               key={task.id}
               task={task}
               projects={projects}
+              canEdit={canEdit}
               onEdit={() => onEditTask(task)}
               onDelete={() => onDeleteTask(task.id)}
               onStatusChange={(status) => onStatusChange(task.id, status)}
@@ -304,7 +313,10 @@ function KanbanColumn({ id, title, tasks, projects, onEditTask, onDeleteTask, on
 }
 
 export default function TasksPage() {
+  const router = useRouter()
   const searchParams = useSearchParams()
+  const projectQueryId = searchParams.get("projectId")
+  const taskQueryId = searchParams.get("taskId")
   const { profile, loading: userLoading } = useUser()
   const canEdit = profile?.role === "admin" || profile?.role === "member"
 
@@ -314,7 +326,7 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [projectFilter, setProjectFilter] = useState<string[]>(searchParams.get("projectId") ? [searchParams.get("projectId")!] : [])
+  const [projectFilter, setProjectFilter] = useState<string[]>(projectQueryId ? [projectQueryId] : [])
   const [priorityFilter, setPriorityFilter] = useState<string[]>(searchParams.get("priority") ? [searchParams.get("priority")!] : [])
   const [assigneeFilter, setAssigneeFilter] = useState<string[]>(searchParams.get("assigneeMemberId") ? [searchParams.get("assigneeMemberId")!] : [])
   const [assigneeFilterOpen, setAssigneeFilterOpen] = useState(false)
@@ -332,6 +344,17 @@ export default function TasksPage() {
   const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get("q") || "")
   
   const [viewMode, setViewMode] = useState<ViewMode>("kanban")
+  const [listSortColumn, setListSortColumn] = useState<ListColumnId>("dueDate")
+  const [listSortDirection, setListSortDirection] = useState<"asc" | "desc">("asc")
+  const [listPage, setListPage] = useState(1)
+  const [visibleListColumns, setVisibleListColumns] = useState<Record<ListColumnId, boolean>>({
+    task: true,
+    project: true,
+    status: true,
+    priority: true,
+    assignee: true,
+    dueDate: true,
+  })
   const [calendarDate, setCalendarDate] = useState<Date>(new Date())
   const [calendarSelectedDate, setCalendarSelectedDate] = useState<Date | undefined>(new Date())
 
@@ -354,7 +377,7 @@ export default function TasksPage() {
   const [editSaving, setEditSaving] = useState(false)
 
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [dragStartStatus, setDragStartStatus] = useState<Task["status"] | null>(null)
+  const handledTaskQueryRef = useRef<string | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -376,6 +399,13 @@ export default function TasksPage() {
     if (typeof window === "undefined") return
     sessionStorage.setItem("projecthub-tasks-my-only", String(myTasksOnly))
   }, [myTasksOnly])
+
+  useEffect(() => {
+    if (!projectQueryId) return
+
+    setProjectFilter((prev) => (prev.length === 1 && prev[0] === projectQueryId ? prev : [projectQueryId]))
+    setMyTasksOnly(false)
+  }, [projectQueryId])
 
   const fetchTasks = useCallback(async () => {
     const params = new URLSearchParams()
@@ -468,11 +498,16 @@ export default function TasksPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
+  useEffect(() => {
+    setListPage(1)
+  }, [projectFilter, priorityFilter, assigneeFilter, dueFilter, debouncedSearch, myTasksOnly, viewMode])
+
   const grouped = useMemo(() => {
     const currentMemberId = members.find((member) => member.user_id === profile?.id)?.id || null
+    const enforceMyTasksOnly = myTasksOnly && Boolean(currentMemberId)
 
     const filteredTasks = tasks.filter((task) => {
-      if (myTasksOnly && task.assignee_member_id !== currentMemberId) {
+      if (enforceMyTasksOnly && task.assignee_member_id !== currentMemberId) {
         return false
       }
       if (projectFilter.length > 0 && !projectFilter.includes(task.project_id)) {
@@ -520,6 +555,52 @@ export default function TasksPage() {
     dueFilter.length > 0 ||
     myTasksOnly ||
     debouncedSearch.trim().length > 0
+
+  const listTasks = useMemo(() => Object.values(grouped).flat(), [grouped])
+
+  const sortedListTasks = useMemo(() => {
+    const rows = [...listTasks]
+
+    rows.sort((a, b) => {
+      const factor = listSortDirection === "asc" ? 1 : -1
+
+      if (listSortColumn === "task") {
+        return a.title.localeCompare(b.title) * factor
+      }
+      if (listSortColumn === "project") {
+        return getProjectName(projects, a.project_id).localeCompare(getProjectName(projects, b.project_id)) * factor
+      }
+      if (listSortColumn === "status") {
+        return a.status.localeCompare(b.status) * factor
+      }
+      if (listSortColumn === "priority") {
+        const rank: Record<Task["priority"], number> = { low: 1, medium: 2, high: 3, urgent: 4 }
+        return (rank[a.priority] - rank[b.priority]) * factor
+      }
+      if (listSortColumn === "assignee") {
+        return getMemberName(members, a.assignee_member_id).localeCompare(getMemberName(members, b.assignee_member_id)) * factor
+      }
+
+      const aTime = a.due_date ? new Date(a.due_date).getTime() : Number.POSITIVE_INFINITY
+      const bTime = b.due_date ? new Date(b.due_date).getTime() : Number.POSITIVE_INFINITY
+      return (aTime - bTime) * factor
+    })
+
+    return rows
+  }, [listSortColumn, listSortDirection, listTasks, members, projects])
+
+  const totalListPages = Math.max(1, Math.ceil(sortedListTasks.length / 12))
+
+  const pagedListTasks = useMemo(() => {
+    const start = (listPage - 1) * 12
+    return sortedListTasks.slice(start, start + 12)
+  }, [listPage, sortedListTasks])
+
+  useEffect(() => {
+    if (listPage > totalListPages) {
+      setListPage(totalListPages)
+    }
+  }, [listPage, totalListPages])
 
   const addTask = async () => {
     if (!canEdit || !newProjectId || !newTitle.trim()) return
@@ -572,6 +653,19 @@ export default function TasksPage() {
     }
   }
 
+  const reorderTasks = async (updates: Array<{ id: string; status: Task["status"]; position: number }>) => {
+    const response = await fetch("/api/tasks/reorder", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ updates }),
+    })
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data?.error || "Failed to persist task ordering")
+    }
+  }
+
   const removeTask = async (taskId: string) => {
     const previous = tasks
     setTasks((prev) => prev.filter((task) => task.id !== taskId))
@@ -585,47 +679,23 @@ export default function TasksPage() {
   }
 
   const handleDragStart = (event: DragStartEvent) => {
-    const task = tasks.find((t) => t.id === event.active.id)
+    if (!canEdit) return
     setActiveId(event.active.id as string)
-    setDragStartStatus(task?.status || null)
   }
 
   const handleDragOver = (event: DragOverEvent) => {
-    const { active, over } = event
-    if (!over) return
-
-    const activeId = active.id as string
-    const overId = over.id as string
-
-    const activeTask = tasks.find((t) => t.id === activeId)
-    if (!activeTask) return
-
-    const overColumn = columns.find((col) => col.id === overId)
-    const overTask = tasks.find((t) => t.id === overId)
-
-    if (overColumn) {
-      if (activeTask.status !== overColumn.id) {
-        setTasks((prev) =>
-          prev.map((task) =>
-            task.id === activeId ? { ...task, status: overColumn.id } : task
-          )
-        )
-      }
-    } else if (overTask) {
-      if (activeTask.status !== overTask.status) {
-        setTasks((prev) =>
-          prev.map((task) =>
-            task.id === activeId ? { ...task, status: overTask.status } : task
-          )
-        )
-      }
-    }
+    if (!canEdit) return
+    void event
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
+    if (!canEdit) {
+      setActiveId(null)
+      return
+    }
+
     const { active, over } = event
     setActiveId(null)
-    setDragStartStatus(null)
 
     if (!over) return
 
@@ -636,51 +706,104 @@ export default function TasksPage() {
 
     const activeTask = tasks.find((t) => t.id === activeId)
     const overTask = tasks.find((t) => t.id === overId)
+    const overColumn = columns.find((col) => col.id === overId)
 
     if (!activeTask) return
 
-    const newStatus = activeTask.status
+    const destinationStatus: Task["status"] =
+      overColumn?.id || overTask?.status || activeTask.status
 
-    if (activeTask && overTask) {
-      const columnTasks = tasks
-        .filter((t) => t.status === activeTask.status)
-        .sort((a, b) => (a.position || 0) - (b.position || 0))
+    const lanes: Record<Task["status"], Task[]> = {
+      todo: tasks.filter((task) => task.status === "todo").sort((a, b) => (a.position || 0) - (b.position || 0)),
+      "in-progress": tasks
+        .filter((task) => task.status === "in-progress")
+        .sort((a, b) => (a.position || 0) - (b.position || 0)),
+      done: tasks.filter((task) => task.status === "done").sort((a, b) => (a.position || 0) - (b.position || 0)),
+    }
 
-      const activeIndex = columnTasks.findIndex((t) => t.id === activeId)
-      const overIndex = columnTasks.findIndex((t) => t.id === overId)
+    // Remove the active card from all lanes first to avoid duplicates.
+    for (const lane of columns.map((col) => col.id)) {
+      lanes[lane] = lanes[lane].filter((task) => task.id !== activeId)
+    }
 
-      if (activeIndex !== overIndex && activeIndex !== -1 && overIndex !== -1) {
-        const newPosition = columnTasks[overIndex].position || overIndex + 1
-        const updates: Partial<Task> = { position: newPosition }
-        if (dragStartStatus && dragStartStatus !== newStatus) {
-          updates.status = newStatus
+    const sourceStatus = activeTask.status
+    const originalDestinationLane = tasks
+      .filter((task) => task.status === destinationStatus)
+      .sort((a, b) => (a.position || 0) - (b.position || 0))
+
+    const destinationLane = [...lanes[destinationStatus]]
+    if (overTask) {
+      const overIndex = destinationLane.findIndex((task) => task.id === overTask.id)
+      if (overIndex >= 0) {
+        let insertIndex = overIndex
+
+        if (sourceStatus === destinationStatus) {
+          const sourceOriginalIndex = originalDestinationLane.findIndex((task) => task.id === activeId)
+          const overOriginalIndex = originalDestinationLane.findIndex((task) => task.id === overTask.id)
+
+          if (sourceOriginalIndex !== -1 && overOriginalIndex !== -1 && sourceOriginalIndex < overOriginalIndex) {
+            insertIndex = overIndex + 1
+          }
         }
-        await updateTask(activeId, updates)
-      } else if (dragStartStatus && dragStartStatus !== newStatus) {
-        await updateTask(activeId, { status: newStatus })
-      }
-    }
 
-    if (activeTask && columns.find((col) => col.id === overId)) {
-      const updates: Partial<Task> = {}
-      if (dragStartStatus && dragStartStatus !== newStatus) {
-        updates.status = newStatus
-        const columnTasks = tasks
-          .filter((t) => t.status === newStatus)
-          .sort((a, b) => (a.position || 0) - (b.position || 0))
-        const maxPosition = columnTasks.reduce((max, t) => Math.max(max, t.position || 0), 0)
-        updates.position = maxPosition + 1
+        destinationLane.splice(insertIndex, 0, { ...activeTask, status: destinationStatus })
       } else {
-        const columnTasks = tasks
-          .filter((t) => t.status === activeTask.status)
-          .sort((a, b) => (a.position || 0) - (b.position || 0))
-        const maxPosition = columnTasks.reduce((max, t) => Math.max(max, t.position || 0), 0)
-        updates.position = maxPosition + 1
+        destinationLane.push({ ...activeTask, status: destinationStatus })
       }
-      await updateTask(activeId, updates)
+    } else {
+      destinationLane.push({ ...activeTask, status: destinationStatus })
+    }
+    lanes[destinationStatus] = destinationLane
+
+    const laneUpdates = new Map<string, Partial<Task>>()
+    for (const lane of columns.map((col) => col.id)) {
+      lanes[lane].forEach((task, index) => {
+        laneUpdates.set(task.id, {
+          status: lane,
+          position: index + 1,
+        })
+      })
     }
 
-    loadAll()
+    const nextTasks = tasks.map((task) => {
+      const update = laneUpdates.get(task.id)
+      if (!update) return task
+      return {
+        ...task,
+        status: update.status ?? task.status,
+        position: update.position ?? task.position,
+      }
+    })
+
+    setTasks(nextTasks)
+
+    const changedTasks = nextTasks.filter((task) => {
+      const previousTask = tasks.find((prev) => prev.id === task.id)
+      if (!previousTask) return false
+
+      const statusChanged = previousTask.status !== task.status
+      const previousPosition = previousTask.position ?? 0
+      const nextPosition = task.position ?? 0
+      return statusChanged || previousPosition !== nextPosition
+    })
+
+    if (changedTasks.length === 0) {
+      return
+    }
+
+    try {
+      await reorderTasks(
+        changedTasks.map((task) => ({
+          id: task.id,
+          status: task.status,
+          position: task.position || 1,
+        }))
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to persist task ordering")
+      await loadAll()
+      return
+    }
   }
 
   const openEditDialog = (task: Task) => {
@@ -692,6 +815,18 @@ export default function TasksPage() {
     setEditAssignee(task.assignee_member_id || "")
     setEditDueDate(task.due_date || "")
   }
+
+  const closePreviewDialog = useCallback(() => {
+    setPreviewTask(null)
+    setEditMode(false)
+
+    if (!taskQueryId) return
+
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete("taskId")
+    const nextQuery = params.toString()
+    router.replace(nextQuery ? `/tasks?${nextQuery}` : "/tasks", { scroll: false })
+  }, [router, searchParams, taskQueryId])
 
   const saveEdit = async () => {
     if (!previewTask || !editTitle.trim()) return
@@ -708,6 +843,22 @@ export default function TasksPage() {
     setEditMode(false)
   }
 
+  useEffect(() => {
+    if (!taskQueryId || tasks.length === 0) return
+    if (handledTaskQueryRef.current === taskQueryId) return
+    const match = tasks.find((task) => task.id === taskQueryId)
+    if (match) {
+      openEditDialog(match)
+      handledTaskQueryRef.current = taskQueryId
+    }
+  }, [taskQueryId, tasks])
+
+  useEffect(() => {
+    if (!taskQueryId) {
+      handledTaskQueryRef.current = null
+    }
+  }, [taskQueryId])
+
   const activeTask = useMemo(
     () => tasks.find((t) => t.id === activeId) || null,
     [tasks, activeId]
@@ -715,17 +866,17 @@ export default function TasksPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Tasks</h1>
           <p className="text-muted-foreground">Manage tasks across all projects.</p>
         </div>
         
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+        <div className="flex w-full flex-col items-start gap-2 xl:w-auto xl:items-end">
           {canEdit && (
             <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
               <DialogTrigger asChild>
-                <Button>
+                <Button className="w-full sm:w-auto">
                   <Plus className="mr-2 h-4 w-4" />
                   Add Task
                 </Button>
@@ -829,7 +980,7 @@ export default function TasksPage() {
             </Dialog>
           )}
           
-          <div className="flex items-center gap-1 border rounded-md p-0.5">
+          <div className="flex w-full items-center gap-1 rounded-md border p-0.5 sm:w-auto">
             <Button
               variant={viewMode === "kanban" ? "default" : "ghost"}
               size="sm"
@@ -863,7 +1014,7 @@ export default function TasksPage() {
 
       {/* Filters */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between sm:hidden">
+        <div className="flex items-center justify-between lg:hidden">
           <Button
             type="button"
             variant="outline"
@@ -876,12 +1027,18 @@ export default function TasksPage() {
           </Button>
         </div>
 
-        <div className={cn("flex-col gap-3", mobileFiltersOpen ? "flex" : "hidden", "sm:flex sm:flex-row sm:items-center")}>
+        <div
+          className={cn(
+            "flex-col gap-3",
+            mobileFiltersOpen ? "flex" : "hidden",
+            "lg:flex lg:flex-row lg:flex-wrap lg:items-center",
+          )}
+        >
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search tasks..."
-            className="h-10 px-3 rounded-lg border border-input bg-background text-sm w-full sm:w-48"
+            className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm lg:w-56"
           />
           
           <label 
@@ -903,7 +1060,7 @@ export default function TasksPage() {
           <select
             value={projectFilter[0] || ""}
             onChange={(e) => setProjectFilter(e.target.value ? [e.target.value] : [])}
-            className="h-10 px-3 rounded-lg border border-input bg-background text-sm"
+            className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm lg:w-auto"
           >
             <option value="">All Projects</option>
             {projects.map((project) => (
@@ -916,7 +1073,7 @@ export default function TasksPage() {
           <select
             value={priorityFilter[0] || ""}
             onChange={(e) => setPriorityFilter(e.target.value ? [e.target.value] : [])}
-            className="h-10 px-3 rounded-lg border border-input bg-background text-sm"
+            className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm lg:w-auto"
           >
             <option value="">All Priorities</option>
             <option value="low">Low</option>
@@ -925,7 +1082,7 @@ export default function TasksPage() {
             <option value="urgent">Urgent</option>
           </select>
 
-          <div className="relative min-w-56" ref={assigneeFilterRef}>
+          <div className="relative w-full lg:min-w-56 lg:w-auto" ref={assigneeFilterRef}>
             <button
               type="button"
               onClick={() => setAssigneeFilterOpen(!assigneeFilterOpen)}
@@ -980,7 +1137,7 @@ export default function TasksPage() {
           <select
             value={dueFilter[0] || "all"}
             onChange={(e) => setDueFilter(e.target.value === "all" ? [] : [e.target.value])}
-            className="h-10 px-3 rounded-lg border border-input bg-background text-sm"
+            className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm lg:w-auto"
           >
             <option value="all">All Dates</option>
             <option value="due_7d">Due in 7 days</option>
@@ -1166,6 +1323,7 @@ export default function TasksPage() {
                   title={column.title}
                   tasks={grouped[column.id]}
                   projects={projects}
+                  canEdit={canEdit}
                   onEditTask={openEditDialog}
                   onDeleteTask={removeTask}
                   onStatusChange={(taskId, status) => updateTask(taskId, { status })}
@@ -1183,9 +1341,42 @@ export default function TasksPage() {
         </div>
       ) : viewMode === "list" ? (
         <Card className="glass">
+          <CardHeader className="flex flex-col gap-2 border-b border-border/60 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-base">Tasks table</CardTitle>
+            <div className="flex items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    View columns
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {([
+                    ["task", "Task"],
+                    ["project", "Project"],
+                    ["status", "Status"],
+                    ["priority", "Priority"],
+                    ["assignee", "Assignee"],
+                    ["dueDate", "Due date"],
+                  ] as [ListColumnId, string][]).map(([id, label]) => (
+                    <DropdownMenuItem
+                      key={id}
+                      onClick={(event) => {
+                        event.preventDefault()
+                        setVisibleListColumns((prev) => ({ ...prev, [id]: !prev[id] }))
+                      }}
+                    >
+                      <span className="mr-2 text-xs">{visibleListColumns[id] ? "✓" : "•"}</span>
+                      {label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </CardHeader>
           <CardContent className="p-0">
             <div className="space-y-2 p-3 sm:hidden">
-              {Object.values(grouped).flat().map((task) => (
+              {pagedListTasks.map((task) => (
                 <button
                   key={task.id}
                   type="button"
@@ -1216,47 +1407,152 @@ export default function TasksPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[300px]">Task</TableHead>
-                    <TableHead>Project</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Priority</TableHead>
-                    <TableHead>Assignee</TableHead>
-                    <TableHead>Due Date</TableHead>
+                    {visibleListColumns.task && (
+                      <TableHead className="w-[280px]">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1"
+                          onClick={() => {
+                            setListSortColumn("task")
+                            setListSortDirection((prev) => (listSortColumn === "task" && prev === "asc" ? "desc" : "asc"))
+                          }}
+                        >
+                          Task
+                        </button>
+                      </TableHead>
+                    )}
+                    {visibleListColumns.project && (
+                      <TableHead>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1"
+                          onClick={() => {
+                            setListSortColumn("project")
+                            setListSortDirection((prev) => (listSortColumn === "project" && prev === "asc" ? "desc" : "asc"))
+                          }}
+                        >
+                          Project
+                        </button>
+                      </TableHead>
+                    )}
+                    {visibleListColumns.status && (
+                      <TableHead>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1"
+                          onClick={() => {
+                            setListSortColumn("status")
+                            setListSortDirection((prev) => (listSortColumn === "status" && prev === "asc" ? "desc" : "asc"))
+                          }}
+                        >
+                          Status
+                        </button>
+                      </TableHead>
+                    )}
+                    {visibleListColumns.priority && (
+                      <TableHead>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1"
+                          onClick={() => {
+                            setListSortColumn("priority")
+                            setListSortDirection((prev) => (listSortColumn === "priority" && prev === "asc" ? "desc" : "asc"))
+                          }}
+                        >
+                          Priority
+                        </button>
+                      </TableHead>
+                    )}
+                    {visibleListColumns.assignee && (
+                      <TableHead>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1"
+                          onClick={() => {
+                            setListSortColumn("assignee")
+                            setListSortDirection((prev) => (listSortColumn === "assignee" && prev === "asc" ? "desc" : "asc"))
+                          }}
+                        >
+                          Assignee
+                        </button>
+                      </TableHead>
+                    )}
+                    {visibleListColumns.dueDate && (
+                      <TableHead>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1"
+                          onClick={() => {
+                            setListSortColumn("dueDate")
+                            setListSortDirection((prev) => (listSortColumn === "dueDate" && prev === "asc" ? "desc" : "asc"))
+                          }}
+                        >
+                          Due Date
+                        </button>
+                      </TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {Object.values(grouped).flat().map((task) => (
+                  {pagedListTasks.map((task) => (
                     <TableRow
                       key={task.id}
                       className="cursor-pointer"
                       onClick={() => openEditDialog(task)}
                     >
-                      <TableCell className="font-medium">{task.title}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">
-                          {getProjectName(projects, task.project_id)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={cn("text-xs", statusConfig[task.status].color)}>
-                          {statusConfig[task.status].label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={priorityConfig[task.priority].variant} className="text-xs">
-                          {priorityConfig[task.priority].label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{getMemberName(members, task.assignee_member_id)}</TableCell>
-                      <TableCell>
-                        <span className={cn(isOverdue(task.due_date) && task.status !== "done" && "text-destructive font-medium")}>
-                          {formatDate(task.due_date)}
-                        </span>
-                      </TableCell>
+                      {visibleListColumns.task && <TableCell className="font-medium">{task.title}</TableCell>}
+                      {visibleListColumns.project && (
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
+                            {getProjectName(projects, task.project_id)}
+                          </Badge>
+                        </TableCell>
+                      )}
+                      {visibleListColumns.status && (
+                        <TableCell>
+                          <Badge className={cn("text-xs", statusConfig[task.status].color)}>
+                            {statusConfig[task.status].label}
+                          </Badge>
+                        </TableCell>
+                      )}
+                      {visibleListColumns.priority && (
+                        <TableCell>
+                          <Badge variant={priorityConfig[task.priority].variant} className="text-xs">
+                            {priorityConfig[task.priority].label}
+                          </Badge>
+                        </TableCell>
+                      )}
+                      {visibleListColumns.assignee && <TableCell>{getMemberName(members, task.assignee_member_id)}</TableCell>}
+                      {visibleListColumns.dueDate && (
+                        <TableCell>
+                          <span className={cn(isOverdue(task.due_date) && task.status !== "done" && "text-destructive font-medium")}>
+                            {formatDate(task.due_date)}
+                          </span>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-border/60 p-3 text-sm">
+              <p className="text-muted-foreground">
+                Page {listPage} of {totalListPages}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" disabled={listPage <= 1} onClick={() => setListPage((p) => p - 1)}>
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={listPage >= totalListPages}
+                  onClick={() => setListPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -1306,6 +1602,7 @@ export default function TasksPage() {
             </Button>
           </div>
 
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] xl:items-start">
           {/* Calendar Grid */}
           <Card className="overflow-hidden">
             <CardContent className="p-0">
@@ -1433,7 +1730,7 @@ export default function TasksPage() {
 
           {/* Selected Date Tasks */}
           {calendarSelectedDate && (
-            <Card>
+            <Card className="xl:max-h-[740px] xl:overflow-auto">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <CalendarIcon className="h-4 w-4" />
@@ -1528,11 +1825,12 @@ export default function TasksPage() {
               </CardContent>
             </Card>
           )}
+          </div>
         </div>
       ) : null
       }
       
-      <Dialog open={!!previewTask} onOpenChange={(open: boolean) => !open && setPreviewTask(null)}>
+      <Dialog open={!!previewTask} onOpenChange={(open: boolean) => !open && closePreviewDialog()}>
         <DialogContent className="max-w-lg">
           {previewTask && (
             <>
