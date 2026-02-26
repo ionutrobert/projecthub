@@ -53,7 +53,7 @@ const ROLE_OPTIONS = ["admin", "member", "viewer", "developer", "designer", "pm"
 export default function TeamMemberProfilePage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
-  const { profile } = useUser()
+  const { profile, loading: userLoading } = useUser()
 
   const isAdmin = profile?.actual_role === "admin" || profile?.role === "admin"
 
@@ -75,45 +75,72 @@ export default function TeamMemberProfilePage() {
   const [editRole, setEditRole] = useState("viewer")
 
   useEffect(() => {
+    const API_RETRY_COUNT = 3
+
+    const fetchJsonWithRetry = async <T,>(url: string, retries = 1): Promise<T> => {
+      let lastError: Error | null = null
+
+      for (let attempt = 0; attempt <= retries; attempt += 1) {
+        try {
+          const response = await fetch(url, { cache: "no-store" })
+          const data = await response.json().catch(() => null)
+
+          if (!response.ok) {
+            throw new Error((data as { error?: string } | null)?.error || `Request failed: ${response.status}`)
+          }
+
+          return data as T
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error("Request failed")
+          if (attempt < retries) {
+            await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)))
+          }
+        }
+      }
+
+      throw lastError || new Error("Request failed")
+    }
+
     const load = async () => {
       setLoading(true)
       setError(null)
       try {
-        const [memberRes, projectsRes, tasksRes] = await Promise.all([
-          fetch(`/api/members/${params.id}`, { cache: "no-store" }),
-          fetch("/api/projects", { cache: "no-store" }),
-          fetch("/api/tasks", { cache: "no-store" }),
-        ])
+        await fetchJsonWithRetry<{ user?: unknown; profile?: unknown }>("/api/auth/me", 1).catch(() => null)
 
-        const [memberData, projectsData, tasksData] = await Promise.all([
-          memberRes.json().catch(() => null),
-          projectsRes.json().catch(() => []),
-          tasksRes.json().catch(() => []),
-        ])
-
-        if (!memberRes.ok || !memberData) {
-          throw new Error(memberData?.error || "Failed to load member")
-        }
-
-        const target = memberData as Member
+        const target = await fetchJsonWithRetry<Member>(`/api/members/${params.id}`, API_RETRY_COUNT)
 
         setMember(target)
         setEditName(target.name || "")
         setEditEmail(target.email || "")
         setEditRole(target.role || "viewer")
-        setProjects(Array.isArray(projectsData) ? projectsData : [])
-        setTasks(Array.isArray(tasksData) ? tasksData : [])
+
+        const [projectsResult, tasksResult] = await Promise.allSettled([
+          fetchJsonWithRetry<Project[]>("/api/projects", API_RETRY_COUNT),
+          fetchJsonWithRetry<Task[]>("/api/tasks", API_RETRY_COUNT),
+        ])
+
+        setProjects(projectsResult.status === "fulfilled" && Array.isArray(projectsResult.value) ? projectsResult.value : [])
+        setTasks(tasksResult.status === "fulfilled" && Array.isArray(tasksResult.value) ? tasksResult.value : [])
 
         if (isAdmin) {
           setAuthActivityLoading(true)
-          const authRes = await fetch(`/api/auth/activity?memberId=${target.id}`, { cache: "no-store" })
-          const authData = await authRes.json().catch(() => null)
+          try {
+            const authData = await fetchJsonWithRetry<{
+              events?: AuthActivityEvent[]
+              hasLoggedIn?: boolean
+              lastLoginAt?: string | null
+              missingTable?: boolean
+            }>(`/api/auth/activity?memberId=${target.id}`, API_RETRY_COUNT)
 
-          if (authRes.ok && authData) {
             setAuthEvents(Array.isArray(authData.events) ? authData.events : [])
             setHasLoggedIn(Boolean(authData.hasLoggedIn))
             setLastLoginAt(authData.lastLoginAt || null)
             setAuthActivityMissingTable(Boolean(authData.missingTable))
+          } catch {
+            setAuthEvents([])
+            setHasLoggedIn(false)
+            setLastLoginAt(null)
+            setAuthActivityMissingTable(false)
           }
           setAuthActivityLoading(false)
         }
@@ -124,10 +151,10 @@ export default function TeamMemberProfilePage() {
       }
     }
 
-    if (params.id) {
+    if (!userLoading && params.id) {
       void load()
     }
-  }, [isAdmin, params.id])
+  }, [isAdmin, params.id, userLoading])
 
   const assignedProjects = useMemo(() => {
     if (!member) return []
