@@ -39,13 +39,23 @@ function hashIp(ip: string | null) {
   return createHash("sha256").update(`${salt}:${ip}`).digest("hex")
 }
 
+function decodeGeoHeader(value: string | null) {
+  if (!value) return null
+  const normalized = value.replace(/\+/g, " ")
+  try {
+    return decodeURIComponent(normalized)
+  } catch {
+    return normalized
+  }
+}
+
 export async function logAuthActivity(
   supabase: SupabaseInsertClient,
   input: LogAuthActivityInput
 ) {
   const userAgent = input.request.headers.get("user-agent")
-  const country = input.request.headers.get("x-vercel-ip-country")
-  const city = input.request.headers.get("x-vercel-ip-city")
+  const country = decodeGeoHeader(input.request.headers.get("x-vercel-ip-country"))
+  const city = decodeGeoHeader(input.request.headers.get("x-vercel-ip-city"))
   const ipHash = hashIp(getClientIp(input.request))
 
   const { error } = await supabase.from("auth_activity").insert({

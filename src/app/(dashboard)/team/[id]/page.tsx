@@ -79,26 +79,23 @@ export default function TeamMemberProfilePage() {
       setLoading(true)
       setError(null)
       try {
-        const [membersRes, projectsRes, tasksRes] = await Promise.all([
-          fetch("/api/members", { cache: "no-store" }),
+        const [memberRes, projectsRes, tasksRes] = await Promise.all([
+          fetch(`/api/members/${params.id}`, { cache: "no-store" }),
           fetch("/api/projects", { cache: "no-store" }),
           fetch("/api/tasks", { cache: "no-store" }),
         ])
 
-        const [membersData, projectsData, tasksData] = await Promise.all([
-          membersRes.json().catch(() => []),
+        const [memberData, projectsData, tasksData] = await Promise.all([
+          memberRes.json().catch(() => null),
           projectsRes.json().catch(() => []),
           tasksRes.json().catch(() => []),
         ])
 
-        if (!membersRes.ok) {
-          throw new Error(membersData?.error || "Failed to load member")
+        if (!memberRes.ok || !memberData) {
+          throw new Error(memberData?.error || "Failed to load member")
         }
 
-        const target = (Array.isArray(membersData) ? membersData : []).find((m: Member) => m.id === params.id)
-        if (!target) {
-          throw new Error("Member not found")
-        }
+        const target = memberData as Member
 
         setMember(target)
         setEditName(target.name || "")

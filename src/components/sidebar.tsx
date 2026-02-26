@@ -171,7 +171,11 @@ export function Sidebar() {
               )}
               title={sidebarCollapsed ? displayName : undefined}
             >
-              <UserAvatar profile={profile} user={avatarUser} sizeClass="h-8 w-8" textClass="text-xs" />
+              {loading ? (
+                <div className="h-8 w-8 shrink-0 rounded-full bg-muted animate-pulse" aria-hidden="true" />
+              ) : (
+                <UserAvatar profile={profile} user={avatarUser} sizeClass="h-8 w-8" textClass="text-xs" />
+              )}
               {!sidebarCollapsed && (
                 <>
                   <div className="flex-1 overflow-hidden min-w-0 text-left">
