@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Loader2, Save } from "lucide-react"
+import { ArrowLeft, ChevronDown, ChevronUp, Loader2, Save } from "lucide-react"
 
 import MemberAvatar from "@/components/member-avatar"
 import { useUser } from "@/components/user-provider"
@@ -39,6 +39,15 @@ type Task = {
   due_date: string | null
 }
 
+type AuthActivityEvent = {
+  id: string
+  event_type: "login_success" | "logout" | "session_check"
+  created_at: string
+  country: string | null
+  city: string | null
+  user_agent: string | null
+}
+
 const ROLE_OPTIONS = ["admin", "member", "viewer", "developer", "designer", "pm", "accountant"]
 
 export default function TeamMemberProfilePage() {
@@ -54,6 +63,12 @@ export default function TeamMemberProfilePage() {
   const [member, setMember] = useState<Member | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
+  const [authEvents, setAuthEvents] = useState<AuthActivityEvent[]>([])
+  const [hasLoggedIn, setHasLoggedIn] = useState(false)
+  const [lastLoginAt, setLastLoginAt] = useState<string | null>(null)
+  const [authActivityLoading, setAuthActivityLoading] = useState(false)
+  const [authActivityMissingTable, setAuthActivityMissingTable] = useState(false)
+  const [authHistoryOpen, setAuthHistoryOpen] = useState(false)
 
   const [editName, setEditName] = useState("")
   const [editEmail, setEditEmail] = useState("")
@@ -91,6 +106,20 @@ export default function TeamMemberProfilePage() {
         setEditRole(target.role || "viewer")
         setProjects(Array.isArray(projectsData) ? projectsData : [])
         setTasks(Array.isArray(tasksData) ? tasksData : [])
+
+        if (isAdmin) {
+          setAuthActivityLoading(true)
+          const authRes = await fetch(`/api/auth/activity?memberId=${target.id}`, { cache: "no-store" })
+          const authData = await authRes.json().catch(() => null)
+
+          if (authRes.ok && authData) {
+            setAuthEvents(Array.isArray(authData.events) ? authData.events : [])
+            setHasLoggedIn(Boolean(authData.hasLoggedIn))
+            setLastLoginAt(authData.lastLoginAt || null)
+            setAuthActivityMissingTable(Boolean(authData.missingTable))
+          }
+          setAuthActivityLoading(false)
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load member profile")
       } finally {
@@ -101,7 +130,7 @@ export default function TeamMemberProfilePage() {
     if (params.id) {
       void load()
     }
-  }, [params.id])
+  }, [isAdmin, params.id])
 
   const assignedProjects = useMemo(() => {
     if (!member) return []
@@ -246,8 +275,16 @@ export default function TeamMemberProfilePage() {
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Completed tasks</p>
-            <p className="text-2xl font-semibold">{assignedTasks.filter((task) => task.status === "done").length}</p>
+            <p className="text-xs text-muted-foreground">Last login</p>
+            <p className="text-sm font-semibold">
+              {isAdmin
+                ? hasLoggedIn
+                  ? lastLoginAt
+                    ? new Date(lastLoginAt).toLocaleString()
+                    : "Yes"
+                  : "Never logged in"
+                : "Admin only"}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -297,6 +334,58 @@ export default function TeamMemberProfilePage() {
           </CardContent>
         </Card>
       </div>
+
+      {isAdmin && (
+        <Card className="glass">
+          <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+            <CardTitle className="text-base">Sign-in history</CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAuthHistoryOpen((prev) => !prev)}
+              aria-expanded={authHistoryOpen}
+            >
+              {authHistoryOpen ? (
+                <>
+                  Collapse <ChevronUp className="ml-2 h-4 w-4" />
+                </>
+              ) : (
+                <>
+                  Expand <ChevronDown className="ml-2 h-4 w-4" />
+                </>
+              )}
+            </Button>
+          </CardHeader>
+
+          {authHistoryOpen && (
+            <CardContent className="space-y-2">
+              {authActivityMissingTable ? (
+                <p className="text-sm text-muted-foreground">
+                  Auth activity table is not set up yet. Run `sql/migrate_auth_activity.sql`.
+                </p>
+              ) : authActivityLoading ? (
+                <p className="text-sm text-muted-foreground">Loading activity...</p>
+              ) : authEvents.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No sign-in events recorded for this user yet.</p>
+              ) : (
+                authEvents.slice(0, 20).map((event) => (
+                  <div key={event.id} className="rounded-md border border-border/70 px-3 py-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-medium capitalize">{event.event_type.replace("_", " ")}</p>
+                      <p className="text-xs text-muted-foreground">{new Date(event.created_at).toLocaleString()}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {event.city || event.country
+                        ? `Location: ${[event.city, event.country].filter(Boolean).join(", ")}`
+                        : "Location unavailable"}
+                    </p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          )}
+        </Card>
+      )}
 
     </div>
   )

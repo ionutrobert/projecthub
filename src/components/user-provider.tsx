@@ -221,6 +221,16 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const supabase = createClient()
 
     try {
+      await fetch("/api/auth/activity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventType: "logout" }),
+      })
+    } catch {
+      // no-op
+    }
+
+    try {
       await supabase.auth.signOut({ scope: "global" })
     } catch {
       // continue with local cleanup even if global signout fails

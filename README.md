@@ -49,6 +49,7 @@ ProjectHub keeps project work clear and practical: who owns what, what’s due, 
 - `/api/clients/[id]`
 - `/api/profile`
 - `/api/auth/me`
+- `/api/auth/activity`
 - `/api/admin/users`
 - `/api/admin/impersonation`
 
@@ -130,3 +131,4 @@ Expanded capabilities:
 - Rich project preview workflows (timeline view, quick edit, task deep-linking)
 - Profile/theme/avatar customization
 - Admin impersonation support workflows
+- Login activity history (admin-visible) with coarse location context

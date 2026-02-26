@@ -63,6 +63,12 @@ export default function LoginPage() {
         setError(error.message)
         setLoading(false)
       } else {
+        await fetch("/api/auth/activity", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ eventType: "login_success", metadata: { auth_flow: "password" } }),
+        }).catch(() => null)
+
         router.replace("/")
         router.refresh()
       }

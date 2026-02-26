@@ -1,6 +1,8 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+import { isMissingAuthActivityTableError, logAuthActivity } from '@/lib/auth-activity'
+
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
@@ -29,6 +31,24 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     
     if (!error) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (user?.id) {
+        const logError = await logAuthActivity(supabase, {
+          request,
+          userId: user.id,
+          email: user.email,
+          eventType: 'login_success',
+          metadata: { auth_flow: 'oauth_callback' },
+        })
+
+        if (logError && !isMissingAuthActivityTableError(logError)) {
+          console.error('Failed to write auth activity:', logError)
+        }
+      }
+
       return response
     }
   }
