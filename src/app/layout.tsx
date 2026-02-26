@@ -22,6 +22,23 @@ export const metadata: Metadata = {
   description: "A modern project management dashboard for tracking projects, team members, and budgets.",
 }
 
+const themeScript = `
+  (function() {
+    try {
+      var localTheme = localStorage.getItem('projecthub-theme');
+      var supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+      if (!localTheme && supportDarkMode) {
+        localTheme = 'dark';
+      }
+      if (localTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    } catch (e) {}
+  })();
+`
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -29,14 +46,17 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
-        <ThemeProvider>
-          <NavStyleProvider>
-            <UserProvider>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
+      <body suppressHydrationWarning className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
+        <UserProvider>
+          <ThemeProvider>
+            <NavStyleProvider>
               {children}
-            </UserProvider>
-          </NavStyleProvider>
-        </ThemeProvider>
+            </NavStyleProvider>
+          </ThemeProvider>
+        </UserProvider>
       </body>
     </html>
   )

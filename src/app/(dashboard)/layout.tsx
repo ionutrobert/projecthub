@@ -1,44 +1,24 @@
-"use client"
+import { redirect } from "next/navigation"
 
-import { Header } from "@/components/header"
-import { Sidebar } from "@/components/sidebar"
-import { useNavStyle } from "@/components/nav-style-provider"
+import { createClient } from "@/lib/supabase/server"
+import DashboardShell from "./dashboard-shell"
 
-export default function DashboardLayout({
+export const dynamic = "force-dynamic"
+export const fetchCache = "force-no-store"
+
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const { navStyle } = useNavStyle()
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  if (navStyle === "sidebar") {
-    return (
-      <div className="flex h-screen overflow-hidden bg-background">
-        {/* Diffusion orbs - Obsidian style */}
-        <div className="diffusion-orb orb-1" />
-        <div className="diffusion-orb orb-2" />
-        
-        <Sidebar />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <Header />
-          <main className="flex-1 overflow-y-auto p-8">
-            {children}
-          </main>
-        </div>
-      </div>
-    )
+  if (!user) {
+    redirect("/auth/login")
   }
 
-  return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background">
-      {/* Diffusion orbs - Obsidian style */}
-      <div className="diffusion-orb orb-1" />
-      <div className="diffusion-orb orb-2" />
-      
-      <Header />
-      <main className="flex-1 overflow-y-auto p-8">
-        {children}
-      </main>
-    </div>
-  )
+  return <DashboardShell>{children}</DashboardShell>
 }
