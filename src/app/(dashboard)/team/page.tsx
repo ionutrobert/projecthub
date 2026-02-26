@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
 import { Eye, Mail, Pencil, Plus, Search, Shield, Trash2, UserPlus, Users } from "lucide-react"
 
 import MemberAvatar from "@/components/member-avatar"
@@ -54,7 +53,6 @@ type Task = {
 const ROLE_OPTIONS = ["admin", "member", "viewer", "developer", "designer", "pm", "accountant"]
 
 export default function TeamPage() {
-  const router = useRouter()
   const { profile, impersonation, clearImpersonation, loading: userLoading } = useUser()
   const currentRole = profile?.role || "viewer"
   const actualRole = profile?.actual_role || currentRole
@@ -680,8 +678,16 @@ export default function TeamPage() {
                 <Button
                   onClick={() => {
                     const id = previewMember.id
+                    if (typeof window !== "undefined") {
+                      try {
+                        window.sessionStorage.setItem(`team-member-preview:${id}`, JSON.stringify(previewMember))
+                      } catch {
+                        // no-op
+                      }
+
+                      window.location.assign(`/team/${id}`)
+                    }
                     setPreviewMember(null)
-                    router.push(`/team/${id}`)
                   }}
                 >
                   View full profile
