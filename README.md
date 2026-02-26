@@ -2,11 +2,12 @@
 
 ProjectHub is a small SaaS-style project dashboard built with Next.js and Supabase.
 
-The goal of this repo is straightforward: sign in, manage projects, assign people, and track tasks with a clean UI and role-aware access.
+ProjectHub keeps project work clear and practical: who owns what, what’s due, what’s blocked, and what’s moving forward.
 
 ## Stack
 
 - Next.js 16 (App Router)
+- Cache Components + Partial Prerendering (PPR) enabled
 - React 19
 - TypeScript
 - Tailwind CSS
@@ -32,8 +33,10 @@ The goal of this repo is straightforward: sign in, manage projects, assign peopl
 - `/projects`
 - `/projects/new`
 - `/projects/[id]`
+- `/clients`
 - `/tasks`
 - `/team`
+- `/team/[id]`
 - `/settings`
 - `/reports`
 
@@ -43,6 +46,7 @@ The goal of this repo is straightforward: sign in, manage projects, assign peopl
 - `/api/tasks` and `/api/tasks/[id]`
 - `/api/members` and `/api/members/[id]`
 - `/api/clients`
+- `/api/clients/[id]`
 - `/api/profile`
 - `/api/auth/me`
 - `/api/admin/users`
@@ -103,8 +107,26 @@ npm run build
 - Avatar fallback order is: profile avatar -> OAuth avatar -> Gravatar/Libravatar -> generated fallback.
 - This repository focuses on practical CRUD and dashboard usability first, then adds UX polish.
 
-## Current status
+## Scope and features
 
-- Core assignment requirements are implemented and working end-to-end (auth, protected routes, project/member/task CRUD).
-- Bonus features are in progress and already partially included (impersonation, richer tasks workspace, UI personalization).
-- Remaining work is mostly UI polish, with mobile layout refinements as the main focus before final commit.
+Core project management capabilities:
+
+- Project CRUD (list, filter, search, add, edit, delete)
+- Required project fields (`status`, `deadline`, `assigned team member`, `budget`)
+- Responsive frontend with projects table, status filtering, and search
+- Modal-based add/edit project flow
+- Backend API routes with REST-style CRUD
+- PostgreSQL persistence (Supabase)
+- Seed data support (`sql/seed_dummy_data.sql`)
+
+Expanded capabilities:
+
+- Auth + protected routes + role-based behavior
+- Tasks management with dedicated workspace (`/tasks`) and kanban/list/calendar views
+- Task CRUD + status/priority/due date handling + drag/drop reorder persistence
+- Clients management (`/clients`) with dedicated CRUD endpoints
+- Team management with member detail pages (`/team/[id]`) and profile editing
+- Dashboard personalization (widget layout, visibility, quick actions)
+- Rich project preview workflows (timeline view, quick edit, task deep-linking)
+- Profile/theme/avatar customization
+- Admin impersonation support workflows
