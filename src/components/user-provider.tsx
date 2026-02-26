@@ -79,33 +79,47 @@ export function UserProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    const bootstrap = async () => {
+    const getServerAuthSafe = async (): Promise<{
+      user: User | null
+      profile: Profile | null
+      impersonation?: { role: "admin" | "member" | "viewer"; memberName: string | null; memberId: string | null } | null
+    } | null> => {
       try {
-        const getServerAuthSafe = async (): Promise<{
+        const response = await withTimeout(
+          fetch("/api/auth/me", {
+            method: "GET",
+            cache: "no-store",
+            headers: { "Content-Type": "application/json" },
+          }),
+          8000
+        )
+
+        if (!response.ok) {
+          return null
+        }
+
+        return (await response.json()) as {
           user: User | null
           profile: Profile | null
           impersonation?: { role: "admin" | "member" | "viewer"; memberName: string | null; memberId: string | null } | null
-        } | null> => {
-          try {
-            const response = await withTimeout(
-              fetch("/api/auth/me", {
-                method: "GET",
-                cache: "no-store",
-                headers: { "Content-Type": "application/json" },
-              }),
-              5000
-            )
-
-            if (!response.ok) {
-              return null
-            }
-
-            return (await response.json()) as { user: User | null; profile: Profile | null }
-          } catch {
-            return null
-          }
         }
+      } catch {
+        return null
+      }
+    }
 
+    const hydrateFromServerAuth = async () => {
+      const snapshot = await getServerAuthSafe()
+      if (!snapshot || !isMounted) return false
+
+      setUser(snapshot.user)
+      setProfile(snapshot.profile)
+      setImpersonation(snapshot.impersonation || null)
+      return true
+    }
+
+    const bootstrap = async () => {
+      try {
         const getSessionSafe = async () => {
           try {
             return await withTimeout(supabase.auth.getSession(), 5000)
@@ -153,7 +167,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setInitialized(true)
 
         if (initialUser) {
-          await loadProfile(initialUser.id)
+          const hydrated = await hydrateFromServerAuth()
+          if (!hydrated) {
+            await loadProfile(initialUser.id)
+          }
         } else {
           setProfile(null)
         }
@@ -181,7 +198,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setProfile(null)
         setImpersonation(null)
       } else {
-        await loadProfile(nextUser.id)
+        const hydrated = await hydrateFromServerAuth()
+        if (!hydrated) {
+          await loadProfile(nextUser.id)
+        }
       }
     })
 
