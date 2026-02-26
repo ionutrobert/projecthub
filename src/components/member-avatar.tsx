@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react"
 import Image from "next/image"
 
-import { useUser } from "@/components/user-provider"
 import { cn } from "@/lib/utils"
 import { getMemberAvatarCandidates, getNameInitials } from "@/lib/avatar"
 
@@ -28,16 +27,9 @@ export default function MemberAvatar({
   className,
   ring = true,
 }: MemberAvatarProps) {
-  const { profile } = useUser()
-
   const candidates = useMemo(
     () => {
-      const normalizedMemberEmail = (email || "").trim().toLowerCase()
-      const normalizedProfileEmail = (profile?.email || "").trim().toLowerCase()
-
-      const isCurrentUserAvatar =
-        (Boolean(profile?.id) && Boolean(userId) && profile?.id === userId) ||
-        (Boolean(normalizedMemberEmail) && normalizedMemberEmail === normalizedProfileEmail)
+      const hasMemberEmail = Boolean((email || "").trim())
 
       return getMemberAvatarCandidates(
         {
@@ -46,10 +38,10 @@ export default function MemberAvatar({
           user_id: userId,
           avatar_url: avatarUrl,
         },
-        { includeEmailAvatar: isCurrentUserAvatar }
+        { includeEmailAvatar: hasMemberEmail }
       )
     },
-    [name, email, userId, avatarUrl, profile?.id, profile?.email]
+    [name, email, userId, avatarUrl]
   )
   const [candidateIndex, setCandidateIndex] = useState(0)
   const currentSrc = candidates[candidateIndex]
