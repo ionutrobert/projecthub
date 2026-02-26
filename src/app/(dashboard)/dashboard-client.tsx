@@ -17,13 +17,22 @@ import {
   PauseCircle,
   Plus,
   Minus,
-  X,
+  Users,
+  Circle,
 } from "lucide-react";
 
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import MemberAvatar from "@/components/member-avatar";
 import { useTheme } from "@/components/theme-provider";
+import { useUser } from "@/components/user-provider";
 import { cn } from "@/lib/utils";
 
 type Project = {
@@ -39,6 +48,7 @@ type Project = {
   task_count?: number;
   project_members?: Array<{
     members?: {
+      id?: string | null;
       name?: string | null;
       email?: string | null;
       user_id?: string | null;
@@ -54,11 +64,23 @@ type Task = {
   due_date: string | null;
 };
 
+type Member = {
+  id: string;
+  name: string;
+  email?: string | null;
+  role?: string | null;
+  user_id?: string | null;
+  avatar_url?: string | null;
+};
+
 type ProjectTaskPreview = {
   id: string;
   title: string;
   status: "todo" | "in-progress" | "done";
+  priority?: "low" | "medium" | "high" | "urgent";
+  description?: string | null;
   due_date: string | null;
+  assignee_member_id?: string | null;
 };
 
 type WidgetId =
@@ -70,6 +92,7 @@ type WidgetId =
   | "todoTasks"
   | "inProgressTasks"
   | "overdueTasks"
+  | "teamMembers"
   | "recentProjects";
 
 type WidgetSize = "sm" | "md" | "lg" | "xl";
@@ -111,6 +134,7 @@ const DEFAULT_LAYOUT: DashboardLayoutItem[] = [
   { id: "todoTasks", size: "sm" },
   { id: "inProgressTasks", size: "sm" },
   { id: "overdueTasks", size: "sm" },
+  { id: "teamMembers", size: "sm" },
   { id: "onHoldProjects", size: "sm" },
   ...(ENABLE_RECENT_PROJECTS_WIDGET ? ([{ id: "recentProjects", size: "md" }] as DashboardLayoutItem[]) : []),
 ];
@@ -172,6 +196,13 @@ const WIDGETS: WidgetDefinition[] = [
     href: "/tasks",
     icon: PauseCircle,
   },
+  {
+    id: "teamMembers",
+    title: "Team Members",
+    description: "People in your workspace",
+    href: "/team",
+    icon: Users,
+  },
   ...(ENABLE_RECENT_PROJECTS_WIDGET
     ? ([
         {
@@ -184,6 +215,40 @@ const WIDGETS: WidgetDefinition[] = [
       ] as WidgetDefinition[])
     : []),
 ];
+
+const PROJECT_PREVIEW_TASK_STATUS_LABEL: Record<ProjectTaskPreview["status"], string> = {
+  todo: "To Do",
+  "in-progress": "In Progress",
+  done: "Done",
+};
+
+const PROJECT_PREVIEW_TASK_STATUS_CLASS: Record<ProjectTaskPreview["status"], string> = {
+  todo: "bg-zinc-500/15 text-zinc-200 border-zinc-500/40",
+  "in-progress": "bg-blue-500/15 text-blue-200 border-blue-500/40",
+  done: "bg-emerald-500/15 text-emerald-200 border-emerald-500/40",
+};
+
+const PROJECT_STATUS_BADGE_CLASS: Record<Project["status"], string> = {
+  active: "bg-emerald-500/15 text-emerald-200 border-emerald-500/40",
+  "in-progress": "bg-blue-500/15 text-blue-200 border-blue-500/40",
+  "on-hold": "bg-amber-500/15 text-amber-200 border-amber-500/40",
+  completed: "bg-violet-500/15 text-violet-200 border-violet-500/40",
+  closed: "bg-zinc-500/15 text-zinc-200 border-zinc-500/40",
+};
+
+function parseIsoDate(value: string): Date | undefined {
+  if (!value) return undefined;
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
+function serializeIsoDate(value: Date | undefined): string {
+  if (!value) return "";
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 function widgetMinSize(id: WidgetId): WidgetSize {
   return id === "recentProjects" ? "sm" : "sm";
@@ -230,6 +295,53 @@ function getWidgetSpanClass(size: WidgetSize) {
   }
 }
 
+function formatDateLabel(value: string | null | undefined) {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "-";
+  return parsed.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function getTimelineProgress(startDate?: string | null, deadline?: string | null) {
+  if (!startDate || !deadline) {
+    return {
+      hasTimeline: false,
+      progress: 0,
+      daysLeft: null as number | null,
+      durationDays: null as number | null,
+    };
+  }
+
+  const start = new Date(startDate);
+  const end = new Date(deadline);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+    return {
+      hasTimeline: false,
+      progress: 0,
+      daysLeft: null as number | null,
+      durationDays: null as number | null,
+    };
+  }
+
+  const now = new Date();
+  const duration = end.getTime() - start.getTime();
+  const elapsed = Math.min(Math.max(now.getTime() - start.getTime(), 0), duration);
+  const progress = Math.round((elapsed / duration) * 100);
+  const daysLeft = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const durationDays = Math.max(1, Math.ceil(duration / (1000 * 60 * 60 * 24)));
+
+  return {
+    hasTimeline: true,
+    progress,
+    daysLeft,
+    durationDays,
+  };
+}
+
 function normalizePreferences(input: unknown): DashboardPreferences {
   if (!input || typeof input !== "object") {
     return { layout: DEFAULT_LAYOUT, hiddenWidgetIds: [] };
@@ -273,9 +385,11 @@ function normalizePreferences(input: unknown): DashboardPreferences {
 export default function DashboardClient() {
   const router = useRouter();
   const { accentColor } = useTheme();
+  const { profile } = useUser();
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [customizationOpen, setCustomizationOpen] = useState(false);
   const [draggedWidgetId, setDraggedWidgetId] = useState<WidgetId | null>(null);
@@ -285,13 +399,28 @@ export default function DashboardClient() {
     hiddenWidgetIds: [],
   });
   const [persistNotice, setPersistNotice] = useState<string | null>(null);
+  const [layoutChangedByUser, setLayoutChangedByUser] = useState(false);
   const [hasLoadedPreferences, setHasLoadedPreferences] = useState(false);
   const [skipInitialPersist, setSkipInitialPersist] = useState(true);
   const [layoutMode, setLayoutMode] = useState<LayoutMode | null>(null);
   const [previewTasks, setPreviewTasks] = useState<ProjectTaskPreview[]>([]);
+  const [selectedPreviewTask, setSelectedPreviewTask] = useState<ProjectTaskPreview | null>(null);
   const [previewTasksLoading, setPreviewTasksLoading] = useState(false);
   const [previewTasksExpanded, setPreviewTasksExpanded] = useState(false);
   const [previewDescriptionExpanded, setPreviewDescriptionExpanded] = useState(false);
+  const [quickEditMode, setQuickEditMode] = useState(false);
+  const [quickEditSaving, setQuickEditSaving] = useState(false);
+  const [quickEditName, setQuickEditName] = useState("");
+  const [quickEditStatus, setQuickEditStatus] = useState<Project["status"]>("active");
+  const [quickEditStartDate, setQuickEditStartDate] = useState("");
+  const [quickEditDeadline, setQuickEditDeadline] = useState("");
+  const [quickEditBudget, setQuickEditBudget] = useState("");
+  const [quickEditClient, setQuickEditClient] = useState("");
+  const [quickEditDescription, setQuickEditDescription] = useState("");
+  const [quickEditMemberIds, setQuickEditMemberIds] = useState<string[]>([]);
+  const [quickEditLabels, setQuickEditLabels] = useState<string[]>([]);
+  const [quickEditLabelInput, setQuickEditLabelInput] = useState("");
+  const [welcomeMessage, setWelcomeMessage] = useState("Welcome back to ProjectHub.");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -314,21 +443,44 @@ export default function DashboardClient() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [projectsRes, tasksRes] = await Promise.all([
+      const [projectsRes, tasksRes, membersRes] = await Promise.all([
         fetch("/api/projects", { cache: "no-store" }),
         fetch("/api/tasks", { cache: "no-store" }),
+        fetch("/api/members", { cache: "no-store" }),
       ]);
-      const [projectsData, tasksData] = await Promise.all([projectsRes.json(), tasksRes.json()]);
+      const [projectsData, tasksData, membersData] = await Promise.all([
+        projectsRes.json(),
+        tasksRes.json(),
+        membersRes.json(),
+      ]);
 
       setProjects(Array.isArray(projectsData) ? projectsData : []);
       setTasks(Array.isArray(tasksData) ? tasksData : []);
+      setMembers(Array.isArray(membersData) ? membersData : []);
     } catch {
       setProjects([]);
       setTasks([]);
+      setMembers([]);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    const firstName =
+      profile?.full_name?.split(" ")[0] ||
+      profile?.email?.split("@")[0] ||
+      "there";
+
+    const messages = [
+      `Welcome back, ${firstName}. Let's move ProjectHub forward today.`,
+      `${firstName}, your ProjectHub command center is ready.`,
+      `Great to see you, ${firstName}. Pick one win and ship it in ProjectHub.`,
+      `${firstName}, your team momentum starts here in ProjectHub.`,
+    ];
+
+    setWelcomeMessage(messages[Math.floor(Math.random() * messages.length)]);
+  }, [profile?.email, profile?.full_name]);
 
   useEffect(() => {
     void loadData();
@@ -408,6 +560,8 @@ export default function DashboardClient() {
       return;
     }
 
+    if (!layoutChangedByUser) return;
+
     let cancelled = false;
     const timer = setTimeout(async () => {
       try {
@@ -427,6 +581,7 @@ export default function DashboardClient() {
             setTimeout(() => {
               setPersistNotice((current) => (current === savedMessage ? null : current));
             }, 900);
+            setLayoutChangedByUser(false);
           } else {
             setPersistNotice("Saved locally. Database sync unavailable right now.");
           }
@@ -449,7 +604,7 @@ export default function DashboardClient() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [preferences, hasLoadedPreferences, layoutMode, skipInitialPersist]);
+  }, [preferences, hasLoadedPreferences, layoutMode, skipInitialPersist, layoutChangedByUser]);
 
   const projectStats = useMemo(() => {
     const totalProjects = projects.length;
@@ -483,6 +638,26 @@ export default function DashboardClient() {
     };
   }, [tasks]);
 
+  const memberStats = useMemo(() => {
+    const uniqueMembers = members.filter((member, index, all) => {
+      const key = (member.user_id || member.email || member.id).toLowerCase();
+      return (
+        all.findIndex((candidate) =>
+          (candidate.user_id || candidate.email || candidate.id).toLowerCase() === key,
+        ) === index
+      );
+    });
+
+    const admins = uniqueMembers.filter((member) => member.role === "admin").length;
+
+    return {
+      total: uniqueMembers.length,
+      admins,
+      contributors: Math.max(0, uniqueMembers.length - admins),
+      recent: uniqueMembers.slice(0, 5),
+    };
+  }, [members]);
+
   const widgetValues = useMemo(
     () => ({
       totalProjects: projectStats.totalProjects.toString(),
@@ -493,9 +668,10 @@ export default function DashboardClient() {
       todoTasks: taskStats.todoTasks.toString(),
       inProgressTasks: taskStats.inProgressTasks.toString(),
       overdueTasks: taskStats.overdueTasks.toString(),
+      teamMembers: memberStats.total.toString(),
       recentProjects: "",
     }),
-    [projectStats, taskStats],
+    [memberStats.total, projectStats, taskStats],
   );
 
   const orderedVisibleWidgets = useMemo(() => {
@@ -504,6 +680,7 @@ export default function DashboardClient() {
   }, [preferences]);
 
   const addWidget = (id: WidgetId) => {
+    setLayoutChangedByUser(true);
     setPreferences((prev) => {
       if (!prev.layout.some((item) => item.id === id)) {
         return {
@@ -521,6 +698,7 @@ export default function DashboardClient() {
   };
 
   const hideWidget = (id: WidgetId) => {
+    setLayoutChangedByUser(true);
     setPreferences((prev) => {
       if (prev.hiddenWidgetIds.includes(id)) return prev;
       return {
@@ -531,6 +709,7 @@ export default function DashboardClient() {
   };
 
   const growWidget = (id: WidgetId) => {
+    setLayoutChangedByUser(true);
     setPreferences((prev) => ({
       ...prev,
       layout: prev.layout.map((item) => {
@@ -544,6 +723,7 @@ export default function DashboardClient() {
   };
 
   const shrinkWidget = (id: WidgetId) => {
+    setLayoutChangedByUser(true);
     setPreferences((prev) => ({
       ...prev,
       layout: prev.layout.map((item) => {
@@ -559,6 +739,8 @@ export default function DashboardClient() {
   const reorderWidget = (fromId: WidgetId, toId: WidgetId) => {
     if (fromId === toId) return;
 
+    setLayoutChangedByUser(true);
+
     setPreferences((prev) => {
       const fromIndex = prev.layout.findIndex((item) => item.id === fromId);
       const toIndex = prev.layout.findIndex((item) => item.id === toId);
@@ -573,6 +755,7 @@ export default function DashboardClient() {
   };
 
   const moveWidget = (id: WidgetId, direction: "up" | "down") => {
+    setLayoutChangedByUser(true);
     setPreferences((prev) => {
       const index = prev.layout.findIndex((item) => item.id === id);
       if (index === -1) return prev;
@@ -587,6 +770,7 @@ export default function DashboardClient() {
   };
 
   const restoreDefaults = () => {
+    setLayoutChangedByUser(true);
     setPreferences({ layout: DEFAULT_LAYOUT, hiddenWidgetIds: [] });
     setPersistNotice("Dashboard reset to defaults.");
     setTimeout(() => setPersistNotice(null), 1800);
@@ -639,9 +823,13 @@ export default function DashboardClient() {
         { label: "Overdue", value: taskStats.overdueTasks, max: taskMax },
         { label: "In progress", value: taskStats.inProgressTasks, max: taskMax },
       ],
+      teamMembers: [
+        { label: "Admins", value: memberStats.admins, max: Math.max(1, memberStats.total) },
+        { label: "Contributors", value: memberStats.contributors, max: Math.max(1, memberStats.total) },
+      ],
       recentProjects: [],
     } as const;
-  }, [projectStats, taskStats]);
+  }, [memberStats, projectStats, taskStats]);
 
   const recentProjects = useMemo(() => {
     return [...projects]
@@ -676,6 +864,26 @@ export default function DashboardClient() {
 
     setPreviewTasksExpanded(false);
     setPreviewDescriptionExpanded(false);
+    setSelectedPreviewTask(null);
+    setQuickEditMode(false);
+    setQuickEditName(selectedRecentProject.name || "");
+    setQuickEditStatus(selectedRecentProject.status || "active");
+    setQuickEditStartDate(selectedRecentProject.start_date || "");
+    setQuickEditDeadline(selectedRecentProject.deadline || "");
+    setQuickEditBudget(
+      typeof selectedRecentProject.budget === "number" && !Number.isNaN(selectedRecentProject.budget)
+        ? String(selectedRecentProject.budget)
+        : "",
+    );
+    setQuickEditClient(selectedRecentProject.client_name || "");
+    setQuickEditDescription(selectedRecentProject.description || "");
+    setQuickEditMemberIds(
+      (selectedRecentProject.project_members || [])
+        .map((pm) => pm.members?.id)
+        .filter((id): id is string => Boolean(id))
+    );
+    setQuickEditLabels(selectedRecentProject.labels || []);
+    setQuickEditLabelInput("");
     setPreviewTasksLoading(true);
 
     const loadProjectTasks = async () => {
@@ -699,6 +907,96 @@ export default function DashboardClient() {
     void loadProjectTasks();
   }, [selectedRecentProject]);
 
+  const getMemberName = useCallback(
+    (memberId?: string | null) => {
+      if (!memberId) return "Unassigned";
+      return members.find((member) => member.id === memberId)?.name || "Unassigned";
+    },
+    [members],
+  );
+
+  const saveQuickEdit = useCallback(async () => {
+    if (!selectedRecentProject || !quickEditName.trim()) return;
+    setQuickEditSaving(true);
+
+    try {
+      const payload = {
+        name: quickEditName.trim(),
+        status: quickEditStatus,
+        start_date: quickEditStartDate || null,
+        deadline: quickEditDeadline || null,
+        budget: quickEditBudget.trim() === "" ? null : Number(quickEditBudget),
+        client_name: quickEditClient.trim() || null,
+        description: quickEditDescription.trim() || null,
+        member_ids: quickEditMemberIds,
+        labels: quickEditLabels,
+      };
+
+      const response = await fetch(`/api/projects/${selectedRecentProject.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const updated = await response.json().catch(() => null);
+      if (!response.ok || !updated) {
+        throw new Error("Failed to save quick edit");
+      }
+
+      setProjects((prev) =>
+        prev.map((project) =>
+          project.id === selectedRecentProject.id
+            ? {
+                ...project,
+                ...updated,
+              }
+            : project,
+        ),
+      );
+      setQuickEditMode(false);
+      setPersistNotice("Project quick edit saved.");
+      setTimeout(() => {
+        setPersistNotice((current) => (current === "Project quick edit saved." ? null : current));
+      }, 1400);
+    } catch {
+      setPersistNotice("Unable to save quick edit right now.");
+    } finally {
+      setQuickEditSaving(false);
+    }
+  }, [
+    quickEditBudget,
+    quickEditClient,
+    quickEditDeadline,
+    quickEditDescription,
+    quickEditName,
+    quickEditStartDate,
+    quickEditStatus,
+    quickEditMemberIds,
+    quickEditLabels,
+    selectedRecentProject,
+  ]);
+
+  const closeProjectPreview = useCallback(() => {
+    setSelectedRecentProjectId(null);
+    setSelectedPreviewTask(null);
+    setQuickEditMode(false);
+    setPreviewTasksExpanded(false);
+    setPreviewDescriptionExpanded(false);
+  }, []);
+
+  const toggleQuickEditMember = useCallback((memberId: string) => {
+    setQuickEditMemberIds((prev) =>
+      prev.includes(memberId) ? prev.filter((id) => id !== memberId) : [...prev, memberId]
+    );
+  }, []);
+
+  const addQuickEditLabel = useCallback(() => {
+    const normalized = quickEditLabelInput.trim().replace(/,/g, "");
+    if (!normalized) return;
+    setQuickEditLabels((prev) => (prev.includes(normalized) ? prev : [...prev, normalized]));
+    setQuickEditLabelInput("");
+  }, [quickEditLabelInput]);
+
   const selectedPreviewTaskCount =
     selectedRecentProject && typeof selectedRecentProject.task_count === "number"
       ? selectedRecentProject.task_count
@@ -710,13 +1008,18 @@ export default function DashboardClient() {
       ? `${selectedPreviewDescription.slice(0, 220).trimEnd()}...`
       : selectedPreviewDescription;
 
+  const timelineMetrics = getTimelineProgress(
+    selectedRecentProject?.start_date || null,
+    selectedRecentProject?.deadline || null,
+  );
+
   return (
     <div className="space-y-6 page-transition">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Dashboard</h1>
           <p className="text-sm text-muted-foreground sm:text-base">
-            Personalized widgets, real data, and one-click navigation to the right area.
+            {welcomeMessage}
           </p>
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end">
@@ -747,9 +1050,6 @@ export default function DashboardClient() {
           )}
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        {persistNotice && <span className="text-xs text-muted-foreground">{persistNotice}</span>}
-      </div>
 
       {customizationOpen && (
         <Card className="glass border-primary/40 bg-primary/5">
@@ -762,6 +1062,7 @@ export default function DashboardClient() {
                 Hidden widgets appear below and can be restored with <span className="font-medium">+</span>.
                 Changes save automatically.
               </p>
+              {persistNotice && <p className="text-xs text-primary/90">{persistNotice}</p>}
             </div>
           </CardContent>
         </Card>
@@ -775,6 +1076,7 @@ export default function DashboardClient() {
           const Icon = widget.icon;
           const value = widgetValues[widget.id];
           const isRecentProjectsWidget = widget.id === "recentProjects";
+          const isTeamMembersWidget = widget.id === "teamMembers";
           const bars = widgetDetailBars[widget.id] || [];
           const recentRowsToShow =
             layoutItem.size === "sm" ? 2 : layoutItem.size === "md" ? 2 : layoutItem.size === "lg" ? 3 : 5;
@@ -937,6 +1239,46 @@ export default function DashboardClient() {
                       ))}
                     </div>
                   )
+                ) : isTeamMembersWidget ? (
+                  <div className="mt-3 space-y-3">
+                    <div className="flex -space-x-2">
+                      {memberStats.recent.map((member) => (
+                        <MemberAvatar
+                          key={member.id}
+                          name={member.name}
+                          email={member.email || undefined}
+                          userId={member.user_id || undefined}
+                          avatarUrl={member.avatar_url || undefined}
+                          ring={false}
+                          sizeClass="h-8 w-8 border-2 border-background"
+                          textClass="text-[10px]"
+                        />
+                      ))}
+                      {memberStats.total > memberStats.recent.length && (
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-background bg-muted text-[10px] font-semibold text-muted-foreground">
+                          +{memberStats.total - memberStats.recent.length}
+                        </div>
+                      )}
+                    </div>
+                    {layoutItem.size !== "sm" && bars.length > 0 && (
+                      <div className="space-y-2">
+                        {bars.map((bar) => {
+                          const width = Math.max(8, Math.round((bar.value / bar.max) * 100));
+                          return (
+                            <div key={bar.label} className="space-y-1">
+                              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                                <span>{bar.label}</span>
+                                <span>{bar.value}</span>
+                              </div>
+                              <div className="h-1.5 rounded-full bg-muted">
+                                <div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   layoutItem.size !== "sm" && bars.length > 0 && (
                   <div className="mt-3 space-y-2">
@@ -1044,134 +1386,388 @@ export default function DashboardClient() {
       </Card>}
 
       {selectedRecentProject && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6" role="dialog" aria-modal="true">
-          <button
-            type="button"
-            className="absolute inset-0 bg-background/65 backdrop-blur-sm"
-            aria-label="Close project preview"
-            onClick={() => setSelectedRecentProjectId(null)}
-          />
-
-          <Card className="glass relative z-10 w-full max-w-[min(94vw,1100px)] border-primary/35 max-h-[90vh] overflow-y-auto">
-            <button
-              type="button"
-              aria-label="Close preview"
-              className="absolute right-3 top-3 z-20 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background/80 text-muted-foreground"
-              onClick={() => setSelectedRecentProjectId(null)}
-            >
-              <X className="h-4 w-4" />
-            </button>
-            <CardHeader className="pb-3">
-              <div>
+        <Dialog
+          open={Boolean(selectedRecentProject)}
+          onOpenChange={(open) => {
+            if (!open) closeProjectPreview();
+          }}
+        >
+          <DialogContent className="z-[220] sm:max-w-[min(94vw,1100px)] max-h-[90vh] overflow-y-auto border-primary/35 bg-background/95 p-0 backdrop-blur-xl [&>button]:hidden">
+            <DialogHeader className="sr-only">
+              <DialogTitle>Project preview</DialogTitle>
+              <DialogDescription>Detailed preview and quick edit for selected project.</DialogDescription>
+            </DialogHeader>
+            <Card className="glass relative w-full border-0 bg-transparent shadow-none">
+            <CardHeader className="sticky top-0 z-20 border-b border-border/60 bg-background/90 pb-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+              <button
+                type="button"
+                aria-label="Close preview"
+                className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background/80 text-muted-foreground"
+                onClick={closeProjectPreview}
+              >
+                <span className="text-base leading-none">×</span>
+              </button>
+              <div className="pr-10 md:flex md:items-start md:justify-between md:gap-4">
+                <div>
                 <p className="text-xs uppercase tracking-wide text-primary">Project Preview</p>
-                <CardTitle className="mt-1 text-xl">{selectedRecentProject.name}</CardTitle>
+                {quickEditMode ? (
+                  <Input
+                    value={quickEditName}
+                    onChange={(event) => setQuickEditName(event.target.value)}
+                    className="mt-1 h-10 text-xl font-semibold"
+                    placeholder="Project name"
+                  />
+                ) : (
+                  <CardTitle className="mt-1 text-xl">{selectedRecentProject.name}</CardTitle>
+                )}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {quickEditMode && (
+                    <Badge variant="outline" className="text-[11px]">
+                      Quick edit enabled
+                    </Badge>
+                  )}
+                </div>
+                </div>
+                <div className="mt-3 min-w-0 md:mt-0 md:w-72">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Project timeline progress</p>
+                  {timelineMetrics.hasTimeline ? (
+                    <>
+                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-primary/10">
+                        <div
+                          className="h-full rounded-full bg-primary shadow-[0_0_18px_hsl(var(--primary)/0.55)] transition-all"
+                          style={{ width: `${Math.max(4, Math.min(100, timelineMetrics.progress))}%` }}
+                        />
+                      </div>
+                      <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                        <span>{formatDateLabel(selectedRecentProject.start_date || null)}</span>
+                        <span>{timelineMetrics.progress}%</span>
+                        <span>{formatDateLabel(selectedRecentProject.deadline || null)}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="mt-1 text-xs text-muted-foreground">Add start + deadline to track progress.</p>
+                  )}
+                </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-4">
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded-lg border border-border/70 bg-background/50 p-3">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Status</p>
-                  <p className="mt-1 text-sm font-medium capitalize">{selectedRecentProject.status}</p>
+                  <Label className="block text-[11px] uppercase tracking-wide text-muted-foreground">Status</Label>
+                  {quickEditMode ? (
+                    <Select value={quickEditStatus} onValueChange={(value) => setQuickEditStatus(value as Project["status"])}>
+                      <SelectTrigger className="mt-1 h-9 text-sm">
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="in-progress">In progress</SelectItem>
+                        <SelectItem value="on-hold">On hold</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="closed">Closed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge className={cn("mt-1 border text-[11px] capitalize", PROJECT_STATUS_BADGE_CLASS[selectedRecentProject.status])}>
+                      {selectedRecentProject.status}
+                    </Badge>
+                  )}
                 </div>
                 <div className="rounded-lg border border-border/70 bg-background/50 p-3">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Date Range</p>
-                  <p className="mt-1 text-sm font-medium">
-                    {selectedRecentProject.start_date || "-"} to {selectedRecentProject.deadline || "-"}
-                  </p>
+                  <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Date Range</Label>
+                  {quickEditMode ? (
+                    <DateRangePicker
+                      className="mt-1"
+                      numberOfMonths={2}
+                      showPresets={false}
+                      date={{
+                        from: parseIsoDate(quickEditStartDate),
+                        to: parseIsoDate(quickEditDeadline),
+                      }}
+                      onDateChange={(range) => {
+                        setQuickEditStartDate(serializeIsoDate(range?.from))
+                        setQuickEditDeadline(serializeIsoDate(range?.to))
+                      }}
+                      placeholder="Select project date range"
+                    />
+                  ) : (
+                    <p className="mt-1 text-sm font-medium">
+                      {formatDateLabel(selectedRecentProject.start_date || null)} to {formatDateLabel(selectedRecentProject.deadline || null)}
+                    </p>
+                  )}
                 </div>
                 <div className="rounded-lg border border-border/70 bg-background/50 p-3">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Budget</p>
-                  <p className="mt-1 text-sm font-medium">
-                    {selectedRecentProject.budget ? `$${selectedRecentProject.budget.toLocaleString()}` : "-"}
-                  </p>
+                  <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Budget</Label>
+                  {quickEditMode ? (
+                    <Input
+                      type="number"
+                      min="0"
+                      value={quickEditBudget}
+                      onChange={(event) => setQuickEditBudget(event.target.value)}
+                      className="mt-1 h-9 text-sm"
+                      placeholder="Budget"
+                    />
+                  ) : (
+                    <p className="mt-1 text-sm font-medium">
+                      {selectedRecentProject.budget ? `$${selectedRecentProject.budget.toLocaleString()}` : "-"}
+                    </p>
+                  )}
                 </div>
                 <div className="rounded-lg border border-border/70 bg-background/50 p-3">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Client</p>
-                  <p className="mt-1 text-sm font-medium">{selectedRecentProject.client_name || "-"}</p>
+                  <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Client</Label>
+                  {quickEditMode ? (
+                    <Input
+                      value={quickEditClient}
+                      onChange={(event) => setQuickEditClient(event.target.value)}
+                      className="mt-1 h-9 text-sm"
+                      placeholder="Client"
+                    />
+                  ) : (
+                    <p className="mt-1 text-sm font-medium">{selectedRecentProject.client_name || "-"}</p>
+                  )}
                 </div>
 
                 <div className="rounded-lg border border-border/70 bg-background/50 p-3 md:col-span-2">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Assigned Team</p>
-                  {Array.isArray(selectedRecentProject.project_members) &&
+                  <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Assigned Team</Label>
+                  {quickEditMode ? (
+                    <div className="mt-2 space-y-2">
+                      <div className="grid max-h-40 gap-1 overflow-y-auto rounded-md border border-border/60 p-2">
+                        {members.map((member) => {
+                          const selected = quickEditMemberIds.includes(member.id);
+                          return (
+                            <button
+                              key={member.id}
+                              type="button"
+                              onClick={() => toggleQuickEditMember(member.id)}
+                              className={cn(
+                                "flex items-center justify-between rounded-md border px-2 py-1.5 text-left text-xs transition-colors",
+                                selected
+                                  ? "border-primary/50 bg-primary/10 text-foreground"
+                                  : "border-border/60 bg-background hover:bg-accent/30"
+                              )}
+                            >
+                              <span className="truncate">{member.name}</span>
+                              <span className="text-muted-foreground">{selected ? "Assigned" : "Assign"}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {quickEditMemberIds.length > 0 ? (
+                          quickEditMemberIds.map((memberId) => {
+                            const member = members.find((item) => item.id === memberId);
+                            if (!member) return null;
+                            return (
+                              <Badge key={memberId} variant="outline" className="inline-flex items-center gap-1">
+                                {member.name}
+                                <button
+                                  type="button"
+                                  className="text-muted-foreground hover:text-foreground"
+                                  onClick={() => toggleQuickEditMember(memberId)}
+                                >
+                                  ×
+                                </button>
+                              </Badge>
+                            );
+                          })
+                        ) : (
+                          <span className="text-sm text-muted-foreground">No members assigned</span>
+                        )}
+                      </div>
+                    </div>
+                  ) : Array.isArray(selectedRecentProject.project_members) &&
                   selectedRecentProject.project_members.length > 0 ? (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {selectedRecentProject.project_members
                         .map((pm) => pm.members)
                         .filter((member): member is NonNullable<typeof member> => Boolean(member))
-                        .map((member) => (
-                          <div
-                            key={`${member.user_id || member.email || member.name}`}
-                            className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/70 px-2 py-1"
-                          >
-                            <MemberAvatar
-                              name={member.name || undefined}
-                              email={member.email || undefined}
-                              userId={member.user_id || undefined}
-                              avatarUrl={member.avatar_url || undefined}
-                              sizeClass="h-6 w-6"
-                              textClass="text-[10px]"
-                            />
-                            <span className="text-xs font-medium">{member.name || member.email || "Member"}</span>
-                          </div>
-                        ))}
+                        .map((member) => {
+                          const key = `${member.id || member.user_id || member.email || member.name}`;
+                          const canOpenMember = Boolean(member.id);
+
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              disabled={!canOpenMember}
+                              onClick={() => {
+                                if (member.id) {
+                                  router.push(`/team/${member.id}`);
+                                }
+                              }}
+                              className={cn(
+                                "inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/70 px-2 py-1 text-left transition-colors",
+                                canOpenMember
+                                  ? "hover:border-primary/50 hover:bg-primary/10"
+                                  : "cursor-default opacity-90"
+                              )}
+                            >
+                              <MemberAvatar
+                                name={member.name || undefined}
+                                email={member.email || undefined}
+                                userId={member.user_id || undefined}
+                                avatarUrl={member.avatar_url || undefined}
+                                sizeClass="h-6 w-6"
+                                textClass="text-[10px]"
+                              />
+                              <span className="text-xs font-medium">{member.name || member.email || "Member"}</span>
+                            </button>
+                          );
+                        })}
                     </div>
                   ) : (
                     <p className="mt-1 text-sm font-medium">No members assigned</p>
                   )}
                 </div>
-                <div className="rounded-lg border border-border/70 bg-background/50 p-3 xl:col-span-2">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Labels</p>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {(selectedRecentProject.labels || []).length > 0 ? (
-                      (selectedRecentProject.labels || []).map((label) => (
-                        <span key={label} className="rounded-full border border-border/70 bg-accent/30 px-2 py-0.5 text-xs">
-                          {label}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-sm text-muted-foreground">No labels</span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-border/70 bg-background/50 p-3 md:col-span-2 xl:col-span-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Tasks</p>
-                    <button
-                      type="button"
-                      className="text-xs text-primary underline-offset-2 hover:underline"
-                      onClick={() => setPreviewTasksExpanded((open) => !open)}
-                    >
-                      {previewTasksExpanded ? "Hide task list" : "Show task list"}
-                    </button>
-                  </div>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {previewTasksLoading
-                      ? "Loading tasks..."
-                      : `${selectedPreviewTaskCount} task${selectedPreviewTaskCount === 1 ? "" : "s"} linked to this project`}
-                  </p>
-                  {previewTasksExpanded && (
-                    <div className="mt-2 space-y-1.5">
-                      {previewTasks.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">No tasks found.</p>
-                      ) : (
-                        previewTasks.slice(0, 6).map((task) => (
-                          <div key={task.id} className="flex items-center justify-between rounded-md border border-border/60 px-2 py-1.5 text-xs">
-                            <span className="truncate pr-3">{task.title}</span>
-                            <span className="shrink-0 capitalize text-muted-foreground">{task.status}</span>
-                          </div>
+                <div className="rounded-lg border border-border/70 bg-background/50 p-3 md:col-span-2 xl:col-span-2">
+                  <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Labels</Label>
+                  {quickEditMode ? (
+                    <div className="mt-2 space-y-2">
+                      <div className="flex flex-wrap gap-1.5">
+                        {quickEditLabels.length > 0 ? (
+                          quickEditLabels.map((label) => (
+                            <Badge key={label} variant="outline" className="inline-flex items-center gap-1 text-xs">
+                              {label}
+                              <button
+                                type="button"
+                                className="text-muted-foreground hover:text-foreground"
+                                onClick={() => setQuickEditLabels((prev) => prev.filter((item) => item !== label))}
+                              >
+                                ×
+                              </button>
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-sm text-muted-foreground">No labels</span>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          value={quickEditLabelInput}
+                          onChange={(event) => setQuickEditLabelInput(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === ",") {
+                              event.preventDefault();
+                              addQuickEditLabel();
+                            }
+                          }}
+                          className="h-9"
+                          placeholder="Add label"
+                        />
+                        <Button type="button" size="sm" variant="outline" onClick={addQuickEditLabel}>
+                          Add
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {(selectedRecentProject.labels || []).length > 0 ? (
+                        (selectedRecentProject.labels || []).map((label) => (
+                          <span key={label} className="rounded-full border border-border/70 bg-accent/30 px-2 py-0.5 text-xs">
+                            {label}
+                          </span>
                         ))
+                      ) : (
+                        <span className="text-sm text-muted-foreground">No labels</span>
                       )}
                     </div>
                   )}
                 </div>
 
                 <div className="rounded-lg border border-border/70 bg-background/50 p-3 md:col-span-2 xl:col-span-4">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Description</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Tasks</Label>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs text-primary underline-offset-2 hover:underline"
+                      onClick={() => setPreviewTasksExpanded((open) => !open)}
+                    >
+                      {previewTasksExpanded ? "Collapse task timeline" : "Expand task timeline preview"}
+                    </button>
+                  </div>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {previewDescriptionText || "No description available."}
+                    {previewTasksLoading
+                      ? "Loading tasks..."
+                      : `${selectedPreviewTaskCount} task${selectedPreviewTaskCount === 1 ? "" : "s"} linked to this project. Expand to preview and open each task.`}
                   </p>
-                  {shouldClampPreviewDescription && (
+                  <div className="mt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => router.push(`/tasks?projectId=${selectedRecentProject.id}`)}
+                    >
+                      Open project tasks
+                    </Button>
+                  </div>
+                  {previewTasksExpanded && (
+                    <div className="mt-3 space-y-3">
+                      {previewTasks.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No tasks found.</p>
+                      ) : (
+                        <div className="relative pl-5">
+                          <div className="pointer-events-none absolute bottom-2 left-[7px] top-1 w-px bg-border/70" />
+                          <div className="space-y-3">
+                            {previewTasks.slice(0, 6).map((task) => (
+                              <div key={task.id} className="relative">
+                                <Circle className="pointer-events-none absolute -left-[20px] top-3 h-3.5 w-3.5 fill-background text-primary" />
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedPreviewTask(task)}
+                                  className="w-full rounded-lg border border-border/60 bg-background/60 px-3 py-2 text-left transition-colors hover:border-primary/50 hover:bg-primary/10"
+                                >
+                                  <div className="flex flex-wrap items-start justify-between gap-2">
+                                    <p className="text-sm font-semibold text-foreground">{task.title}</p>
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      <Badge className={cn("border text-[10px]", PROJECT_PREVIEW_TASK_STATUS_CLASS[task.status])}>
+                                        {PROJECT_PREVIEW_TASK_STATUS_LABEL[task.status]}
+                                      </Badge>
+                                      {task.priority && (
+                                        <Badge variant="outline" className="text-[10px] capitalize">
+                                          {task.priority}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                                    <span>Assignee: {getMemberName(task.assignee_member_id)}</span>
+                                    <span>•</span>
+                                    <span>Due: {formatDateLabel(task.due_date)}</span>
+                                  </div>
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="mt-1"
+                          onClick={() => setPreviewTasksExpanded(false)}
+                        >
+                          Collapse timeline
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-lg border border-border/70 bg-background/50 p-3 md:col-span-2 xl:col-span-4">
+                  <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Description</Label>
+                  {quickEditMode ? (
+                    <Textarea
+                      value={quickEditDescription}
+                      onChange={(event) => setQuickEditDescription(event.target.value)}
+                      rows={4}
+                      className="mt-1 text-sm"
+                    />
+                  ) : (
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {previewDescriptionText || "No description available."}
+                    </p>
+                  )}
+                  {!quickEditMode && shouldClampPreviewDescription && (
                     <button
                       type="button"
                       className="mt-2 text-xs text-primary underline-offset-2 hover:underline"
@@ -1183,19 +1779,112 @@ export default function DashboardClient() {
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="justify-end border-t border-border/60 bg-background/30 p-3 sm:p-4">
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full sm:w-auto"
-                onClick={() => router.push(`/projects/${selectedRecentProject.id}`)}
-              >
-                Open Project Page
-              </Button>
+            <CardFooter className="sticky bottom-0 z-20 flex flex-col gap-2 border-t border-border/60 bg-background/90 p-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+              <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center">
+                {persistNotice && <p className="text-xs text-muted-foreground">{persistNotice}</p>}
+                {quickEditMode && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="w-full sm:w-auto"
+                    onClick={() => setQuickEditMode(false)}
+                    disabled={quickEditSaving}
+                  >
+                    Exit quick edit
+                  </Button>
+                )}
+              </div>
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                {quickEditMode ? (
+                  <Button
+                    size="sm"
+                    className="w-full sm:w-auto"
+                    onClick={saveQuickEdit}
+                    disabled={quickEditSaving || !quickEditName.trim()}
+                  >
+                    {quickEditSaving ? "Saving..." : "Save quick edit"}
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    onClick={() => setQuickEditMode(true)}
+                  >
+                    Quick Edit
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                  onClick={() => router.push(`/projects/${selectedRecentProject.id}`)}
+                >
+                  Open Project Page
+                </Button>
+              </div>
             </CardFooter>
           </Card>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
+
+      <Dialog
+        open={Boolean(selectedPreviewTask)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedPreviewTask(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          {selectedPreviewTask && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{selectedPreviewTask.title}</DialogTitle>
+                <DialogDescription>
+                  Task details from project timeline preview.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className={cn("border text-[11px]", PROJECT_PREVIEW_TASK_STATUS_CLASS[selectedPreviewTask.status])}>
+                    {PROJECT_PREVIEW_TASK_STATUS_LABEL[selectedPreviewTask.status]}
+                  </Badge>
+                  {selectedPreviewTask.priority && (
+                    <Badge variant="outline" className="capitalize">
+                      {selectedPreviewTask.priority}
+                    </Badge>
+                  )}
+                </div>
+                <div className="grid gap-2 rounded-md border border-border/60 bg-muted/20 p-3">
+                  <p>
+                    <span className="text-muted-foreground">Assignee:</span>{" "}
+                    {getMemberName(selectedPreviewTask.assignee_member_id)}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Due date:</span>{" "}
+                    {formatDateLabel(selectedPreviewTask.due_date)}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Description:</span>{" "}
+                    {selectedPreviewTask.description?.trim() || "No description available."}
+                  </p>
+                </div>
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      if (!selectedRecentProject) return;
+                      router.push(`/tasks?projectId=${selectedRecentProject.id}&taskId=${selectedPreviewTask.id}`);
+                    }}
+                  >
+                    Open in Tasks
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -377,6 +377,7 @@ function MemberPicker({
                     name={member.name}
                     email={member.email}
                     avatarUrl={member.avatar_url}
+                    ring={false}
                     sizeClass="h-6 w-6"
                     textClass="text-[8px]"
                   />
@@ -486,6 +487,9 @@ export default function ProjectDetailsClient({
   const [labelItems, setLabelItems] = useState<string[]>([]);
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [formMessage, setFormMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
+  const [newClientName, setNewClientName] = useState("");
+  const [newClientSaving, setNewClientSaving] = useState(false);
 
   // New: Tasks to create with project
   const [addTasksMode, setAddTasksMode] = useState(false);
@@ -495,7 +499,6 @@ export default function ProjectDetailsClient({
   const [newTaskDueDate, setNewTaskDueDate] = useState<Date | undefined>(undefined);
   const [newTaskAssigneeId, setNewTaskAssigneeId] = useState<string | null>(null);
 
-  const selectedMemberCount = useMemo(() => memberIds.length, [memberIds]);
   const selectedMembers = useMemo(
     () => members.filter((member) => memberIds.includes(member.id)),
     [members, memberIds],
@@ -614,6 +617,7 @@ export default function ProjectDetailsClient({
 
   const onSave = async () => {
     if (!canEdit || !editEnabled) return;
+    setFormMessage(null);
     
     if (!name.trim()) {
       setNameError("Project name is required");
@@ -647,7 +651,7 @@ export default function ProjectDetailsClient({
 
     if (!response.ok) {
       setSaving(false);
-      alert(data?.error || "Failed to save project");
+      setFormMessage({ type: "error", text: data?.error || "Failed to save project" });
       return;
     }
 
@@ -670,15 +674,18 @@ export default function ProjectDetailsClient({
     setSaving(false);
 
     if (mode === "create" && data?.id) {
+      setFormMessage({ type: "success", text: "Project created successfully." });
       router.push(`/projects/${data.id}`);
       return;
     }
 
+    setFormMessage({ type: "success", text: "Project saved." });
     setEditEnabled(false);
   };
 
   const onDelete = async () => {
     if (!projectId || !isAdmin) return;
+    setFormMessage(null);
     if (!confirm("Delete this project? This cannot be undone.")) return;
 
     const response = await fetch(`/api/projects/${projectId}`, { method: "DELETE" });
@@ -688,11 +695,47 @@ export default function ProjectDetailsClient({
     }
 
     const data = await response.json().catch(() => null);
-    alert(data?.error || "Failed to delete project");
+    setFormMessage({ type: "error", text: data?.error || "Failed to delete project" });
+  };
+
+  const onQuickCreateClient = async () => {
+    if (!canEdit || !newClientName.trim()) return;
+    setFormMessage(null);
+    setNewClientSaving(true);
+    const response = await fetch("/api/clients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newClientName.trim() }),
+    });
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok || !data) {
+      setNewClientSaving(false);
+      setFormMessage({ type: "error", text: data?.error || "Failed to create client" });
+      return;
+    }
+
+    setClients((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+    setClientName(data.name);
+    setNewClientName("");
+    setFormMessage({ type: "success", text: `Client \"${data.name}\" added.` });
+    setNewClientSaving(false);
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {formMessage && (
+        <div
+          className={cn(
+            "rounded-lg border p-3 text-sm",
+            formMessage.type === "error"
+              ? "border-destructive/30 bg-destructive/10 text-destructive"
+              : "border-emerald-400/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+          )}
+        >
+          {formMessage.text}
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Button variant="outline" onClick={() => router.push("/projects")} className="gap-2">
           <ArrowLeft className="h-4 w-4" /> Back to Projects
@@ -965,6 +1008,8 @@ export default function ProjectDetailsClient({
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                   <FormField label="Project Date Range">
                     <DateRangePicker
+                      numberOfMonths={2}
+                      showPresets={false}
                       date={dateRange}
                       onDateChange={(range) => {
                         setDateRange(range);
@@ -1023,6 +1068,25 @@ export default function ProjectDetailsClient({
                       clients={clients}
                       disabled={!editEnabled}
                     />
+                    {editEnabled && (
+                      <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                        <input
+                          value={newClientName}
+                          onChange={(e) => setNewClientName(e.target.value)}
+                          placeholder="Quick add new client name"
+                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="sm:w-auto"
+                          onClick={onQuickCreateClient}
+                          disabled={newClientSaving || !newClientName.trim()}
+                        >
+                          {newClientSaving ? "Adding..." : "Add client"}
+                        </Button>
+                      </div>
+                    )}
                   </FormField>
 
                   <FormField label="Labels">
