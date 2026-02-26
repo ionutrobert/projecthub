@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { revalidateTag } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 import { z } from "zod"
 import { getRoleContext } from "@/lib/server-authz"
@@ -20,7 +21,7 @@ export async function GET() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, email, full_name, role")
+    .select("id, email, full_name, role, avatar_url")
     .eq("id", user.id)
     .single()
 
@@ -74,25 +75,55 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  const normalizedMembers = (members || []).map((member) => ({
-    id: member.id,
-    name: member.name,
-    email: member.email,
-    role: member.role,
-    user_id: member.user_id,
-    avatar_url:
+  const currentUserEmail = (profile?.email || user.email || "").trim().toLowerCase()
+
+  const normalizedMembers = (members || []).map((member) => {
+    const joinedAvatar =
       Array.isArray(member.profiles) && member.profiles.length > 0
         ? member.profiles[0]?.avatar_url || null
-        : (member.profiles as { avatar_url?: string | null } | null)?.avatar_url || null,
-  }))
+        : (member.profiles as { avatar_url?: string | null } | null)?.avatar_url || null
 
-  const uniqueMembers = normalizedMembers.filter((member, index, all) => {
-    const key = (member.email || member.name).trim().toLowerCase()
-    return all.findIndex((candidate) => {
-      const candidateKey = (candidate.email || candidate.name).trim().toLowerCase()
-      return candidateKey === key
-    }) === index
+    const normalizedEmail = (member.email || "").trim().toLowerCase()
+    const selfAvatar =
+      normalizedEmail && normalizedEmail === currentUserEmail
+        ? (profile?.avatar_url as string | null) || null
+        : null
+
+    return {
+      id: member.id,
+      name: member.name,
+      email: member.email,
+      role: member.role,
+      user_id: member.user_id,
+      avatar_url: joinedAvatar || selfAvatar,
+    }
   })
+
+  const dedupedMap = new Map<string, (typeof normalizedMembers)[number]>()
+
+  for (const member of normalizedMembers) {
+    const key = (member.email || member.name).trim().toLowerCase()
+    const existing = dedupedMap.get(key)
+
+    if (!existing) {
+      dedupedMap.set(key, member)
+      continue
+    }
+
+    const existingScore =
+      (existing.user_id ? 2 : 0) +
+      (existing.avatar_url ? 1 : 0)
+
+    const memberScore =
+      (member.user_id ? 2 : 0) +
+      (member.avatar_url ? 1 : 0)
+
+    if (memberScore > existingScore) {
+      dedupedMap.set(key, member)
+    }
+  }
+
+  const uniqueMembers = Array.from(dedupedMap.values())
 
   return NextResponse.json(uniqueMembers)
 }
@@ -132,6 +163,10 @@ export async function POST(request: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  revalidateTag("members", "max")
+  revalidateTag("team", "max")
+  revalidateTag("dashboard", "max")
 
   return NextResponse.json(data, { status: 201 })
 }

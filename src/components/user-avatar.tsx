@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { User } from "@supabase/supabase-js"
+import Image from "next/image"
 
 import { cn } from "@/lib/utils"
 import { getAvatarCandidates, getInitials } from "@/lib/avatar"
@@ -18,12 +19,14 @@ export default function UserAvatar({
   sizeClass = "h-8 w-8",
   textClass = "text-sm",
   className,
+  ring = true,
 }: {
   profile: ProfileLike | null
   user: User | null
   sizeClass?: string
   textClass?: string
   className?: string
+  ring?: boolean
 }) {
   const candidates = useMemo(() => getAvatarCandidates(profile, user), [profile, user])
   const [candidateIndex, setCandidateIndex] = useState(0)
@@ -31,27 +34,33 @@ export default function UserAvatar({
 
   if (currentSrc) {
     return (
-      <img
-        src={currentSrc}
-        alt="User avatar"
-        className={cn("rounded-full object-cover avatar-ring", sizeClass, className)}
-        referrerPolicy="no-referrer"
-        onError={() => {
-          setCandidateIndex((prev) => {
-            if (prev >= candidates.length - 1) {
-              return prev
-            }
-            return prev + 1
-          })
-        }}
-      />
+      <div className={cn("relative overflow-hidden rounded-full", ring && "avatar-ring", sizeClass, className)}>
+        <Image
+          src={currentSrc}
+          alt="User avatar"
+          fill
+          sizes="48px"
+          className="object-cover"
+          unoptimized
+          referrerPolicy="no-referrer"
+          onError={() => {
+            setCandidateIndex((prev) => {
+              if (prev >= candidates.length - 1) {
+                return prev
+              }
+              return prev + 1
+            })
+          }}
+        />
+      </div>
     )
   }
 
   return (
     <div
       className={cn(
-        "rounded-full bg-primary/20 flex items-center justify-center shrink-0 avatar-ring",
+        "rounded-full bg-primary/20 flex items-center justify-center shrink-0",
+        ring && "avatar-ring",
         sizeClass,
         className
       )}

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
 import { useTheme } from "@/components/theme-provider"
 import { useNavStyle } from "@/components/nav-style-provider"
 import { useUser } from "@/components/user-provider"
@@ -638,7 +639,14 @@ export default function SettingsPage() {
                         )}
                         title="Select avatar"
                       >
-                        <img src={option} alt="Avatar option" className="h-12 w-12 rounded-lg object-cover" />
+                        <Image
+                          src={option}
+                          alt="Avatar option"
+                          width={48}
+                          height={48}
+                          className="h-12 w-12 rounded-lg object-cover"
+                          unoptimized
+                        />
                       </button>
                     )
                   })}

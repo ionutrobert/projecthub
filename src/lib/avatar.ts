@@ -65,18 +65,22 @@ export function getAvatarCandidates(profile: ProfileLike | null, user: User | nu
     return []
   }
 
+  const profileAvatar =
+    profile?.avatar_url && !profile.avatar_url.includes("/api/avatar/email-profile")
+      ? profile.avatar_url
+      : null
+
   const linkedInAvatar = getLinkedInAvatar(user)
   const oauthAvatar = getOAuthAvatar(user)
   const email = user?.email || profile?.email || ""
   const emailProfileAvatar = email
     ? `/api/avatar/email-profile?email=${encodeURIComponent(email)}`
     : null
-
   const uniqueSeed = user?.id || user?.email || profile?.email || profile?.full_name || "projecthub-user"
   const dicebearCartoon = `https://api.dicebear.com/9.x/notionists/svg?seed=${encodeURIComponent(uniqueSeed)}`
 
   return [
-    profile?.avatar_url || null,
+    profileAvatar,
     linkedInAvatar,
     oauthAvatar,
     emailProfileAvatar,
@@ -86,19 +90,28 @@ export function getAvatarCandidates(profile: ProfileLike | null, user: User | nu
   )
 }
 
-export function getMemberAvatarCandidates(member: MemberLike): string[] {
+export function getMemberAvatarCandidates(
+  member: MemberLike,
+  options?: { includeEmailAvatar?: boolean }
+): string[] {
   if (member.avatar_url === "initials") {
     return []
   }
 
-  const emailProfileAvatar = member.email
-    ? `/api/avatar/email-profile?email=${encodeURIComponent(member.email)}`
-    : null
+  const memberAvatar =
+    member.avatar_url && !member.avatar_url.includes("/api/avatar/email-profile")
+      ? member.avatar_url
+      : null
+
+  const emailProfileAvatar =
+    options?.includeEmailAvatar && member.email
+      ? `/api/avatar/email-profile?email=${encodeURIComponent(member.email)}`
+      : null
 
   const uniqueSeed = member.user_id || member.email || member.name || "projecthub-member"
   const dicebearCartoon = `https://api.dicebear.com/9.x/notionists/svg?seed=${encodeURIComponent(uniqueSeed)}`
 
-  return [member.avatar_url || null, emailProfileAvatar, dicebearCartoon].filter(
+  return [memberAvatar, emailProfileAvatar, dicebearCartoon].filter(
     (value): value is string => Boolean(value)
   )
 }
