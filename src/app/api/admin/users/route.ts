@@ -10,6 +10,7 @@ const createUserSchema = z.object({
   email: z.string().email().max(200),
   password: z.string().min(8).max(128),
   role: z.string().min(1).max(80).optional(),
+  avatar_url: z.string().url().nullable().optional(),
 })
 
 function getAdminClient() {
@@ -91,6 +92,7 @@ export async function POST(request: NextRequest) {
   const normalizedEmail = parsed.data.email.trim().toLowerCase()
   const role = parsed.data.role?.trim() || "member"
   const name = parsed.data.name.trim()
+  const avatarUrl = parsed.data.avatar_url?.trim() || null
 
   let newUserId: string | null = null
 
@@ -100,6 +102,7 @@ export async function POST(request: NextRequest) {
     email_confirm: true,
     user_metadata: {
       full_name: name,
+      avatar_url: avatarUrl,
     },
   })
 
@@ -163,6 +166,7 @@ export async function POST(request: NextRequest) {
       email_confirm: true,
       user_metadata: {
         full_name: name,
+        avatar_url: avatarUrl,
       },
     })
 
@@ -188,6 +192,7 @@ export async function POST(request: NextRequest) {
         email: normalizedEmail,
         full_name: name,
         role,
+        avatar_url: avatarUrl,
       },
       { onConflict: "id" }
     )

@@ -6,6 +6,7 @@ import {
   ArrowUp,
   ArrowUpDown,
   Eye,
+  EyeOff,
   LayoutGrid,
   List,
   Mail,
@@ -31,6 +32,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Table,
   TableBody,
@@ -40,6 +45,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
+import { getAvatarPickerOptions, getNameInitials } from "@/lib/avatar"
 
 type Member = {
   id: string
@@ -88,7 +94,13 @@ export default function TeamPage() {
   const [newName, setNewName] = useState("")
   const [newEmail, setNewEmail] = useState("")
   const [newPassword, setNewPassword] = useState("")
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("")
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showNewPasswordConfirm, setShowNewPasswordConfirm] = useState(false)
   const [newRole, setNewRole] = useState("developer")
+  const [newAvatarUrl, setNewAvatarUrl] = useState("")
+  const [showOptionalFields, setShowOptionalFields] = useState(false)
+  const [avatarVariant, setAvatarVariant] = useState(0)
   const [createLoginAccount, setCreateLoginAccount] = useState(true)
   const [saving, setSaving] = useState(false)
   const [draftRoles, setDraftRoles] = useState<Record<string, string>>({})
@@ -105,6 +117,28 @@ export default function TeamPage() {
   })
   const [sortKey, setSortKey] = useState<TeamSortKey>("member")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+  const [viewportWidth, setViewportWidth] = useState<number>(() =>
+    typeof window === "undefined" ? 1280 : window.innerWidth,
+  )
+  const [listPage, setListPage] = useState(1)
+  const [cardVisibleCount, setCardVisibleCount] = useState(10)
+
+  const resetCreateForm = () => {
+    setNewName("")
+    setNewEmail("")
+    setNewPassword("")
+    setNewPasswordConfirm("")
+    setShowNewPassword(false)
+    setShowNewPasswordConfirm(false)
+    setNewRole("developer")
+    setNewAvatarUrl("")
+    setShowOptionalFields(false)
+    setAvatarVariant(0)
+    setCreateLoginAccount(true)
+  }
+
+  const avatarSeed = (newName || newEmail || "projecthub-member").trim() || "projecthub-member"
+  const avatarOptions = useMemo(() => getAvatarPickerOptions(avatarSeed, avatarVariant), [avatarSeed, avatarVariant])
 
   const dedupedMembers = useMemo(() => {
     return members.filter((member, index, all) => {
@@ -148,6 +182,13 @@ export default function TeamPage() {
     if (typeof window === "undefined") return
     window.sessionStorage.setItem("projecthub-team-view-mode", teamView)
   }, [teamView])
+
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth)
+    onResize()
+    window.addEventListener("resize", onResize)
+    return () => window.removeEventListener("resize", onResize)
+  }, [])
 
   useEffect(() => {
     if (userLoading) return
@@ -214,6 +255,27 @@ export default function TeamPage() {
     return rows
   }, [filteredMembers, sortDirection, sortKey, projectCountByMember, taskCountByMember])
 
+  const isPc = viewportWidth >= 1280
+  const listPageSize = isPc ? 9 : 10
+  const listTotalPages = Math.max(1, Math.ceil(sortedMembers.length / listPageSize))
+  const pagedListMembers = useMemo(() => {
+    const start = (listPage - 1) * listPageSize
+    return sortedMembers.slice(start, start + listPageSize)
+  }, [sortedMembers, listPage, listPageSize])
+  const visibleCardMembers = useMemo(
+    () => sortedMembers.slice(0, cardVisibleCount),
+    [sortedMembers, cardVisibleCount],
+  )
+
+  useEffect(() => {
+    setListPage(1)
+    setCardVisibleCount(10)
+  }, [search, roleFilter, sortKey, sortDirection, teamView])
+
+  useEffect(() => {
+    setListPage((current) => Math.min(current, listTotalPages))
+  }, [listTotalPages])
+
   const fetchMembers = async () => {
     setLoading(true)
     setError(null)
@@ -279,6 +341,10 @@ export default function TeamPage() {
       setError("Email and password (min 8 chars) are required to create a login account")
       return
     }
+    if (createLoginAccount && newPassword !== newPasswordConfirm) {
+      setError("Password and confirm password must match")
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -289,6 +355,7 @@ export default function TeamPage() {
             email: newEmail.trim(),
             password: newPassword,
             role: newRole,
+            avatar_url: newAvatarUrl.trim() || null,
           }
         : {
             name: newName.trim(),
@@ -309,11 +376,7 @@ export default function TeamPage() {
 
       await fetchMembers()
       setShowCreate(false)
-      setNewName("")
-      setNewEmail("")
-      setNewPassword("")
-      setNewRole("developer")
-      setCreateLoginAccount(true)
+      resetCreateForm()
     } catch {
       setError("Failed to create member")
     } finally {
@@ -416,75 +479,245 @@ export default function TeamPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-start justify-between gap-3 sm:items-center sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Team</h1>
-          <p className="text-muted-foreground">Manage users, roles, and impersonation controls.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Team</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">Manage users, roles, and impersonation controls.</p>
         </div>
         {canEdit && (
-          <Button className="btn-glow w-full sm:w-auto" onClick={() => setShowCreate((prev) => !prev)}>
+          <Button className="btn-glow w-fit shrink-0" onClick={() => setShowCreate(true)}>
             <UserPlus className="mr-2 h-4 w-4" />
-            {showCreate ? "Close" : "Add Member"}
+            Add Member
           </Button>
         )}
       </div>
 
-      {showCreate && canEdit && (
-        <Card className="glass">
-          <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
-            <input
-              value={newName}
-              onChange={(event) => setNewName(event.target.value)}
-              placeholder="Full name"
-              className="h-10 rounded-lg border border-input bg-background px-3 text-sm"
-            />
-            <input
-              value={newEmail}
-              onChange={(event) => setNewEmail(event.target.value)}
-              placeholder={createLoginAccount ? "Email (required)" : "Email (optional)"}
-              className="h-10 rounded-lg border border-input bg-background px-3 text-sm"
-            />
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-              placeholder={createLoginAccount ? "Password (min 8 chars)" : "Password (optional)"}
-              disabled={!createLoginAccount}
-              className="h-10 rounded-lg border border-input bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-            />
-            <select
-              value={newRole}
-              onChange={(event) => setNewRole(event.target.value)}
-              className="h-10 rounded-lg border border-input bg-background px-3 text-sm"
-            >
-              {ROLE_OPTIONS.map((role) => (
-                <option key={role} value={role}>
-                  {role}
-                </option>
-              ))}
-            </select>
-            <div className="space-y-2">
-              <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={createLoginAccount}
-                  onChange={(event) => setCreateLoginAccount(event.target.checked)}
-                />
-                Create login account (email auto-confirmed)
-              </label>
-              <Button onClick={handleCreateMember} disabled={saving || !newName.trim()} className="w-full">
+      {canEdit && (
+        <Dialog
+          open={showCreate}
+          onOpenChange={(open) => {
+            setShowCreate(open)
+            if (!open) {
+              resetCreateForm()
+            }
+          }}
+        >
+          <DialogContent className="max-h-[90vh] overflow-hidden p-0 sm:max-w-xl">
+            <DialogHeader className="px-6 pb-2 pt-6">
+              <DialogTitle>Create team member</DialogTitle>
+              <DialogDescription>
+                Add a member quickly. Use optional fields for richer profile setup.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="max-h-[calc(90vh-11rem)] overflow-y-auto px-6 py-2">
+              <div className="space-y-4 pb-2">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="member-name">Full name</Label>
+                  <Input
+                    id="member-name"
+                    value={newName}
+                    onChange={(event) => setNewName(event.target.value)}
+                    placeholder="Jane Doe"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="member-email">Email {createLoginAccount ? "(required)" : "(optional)"}</Label>
+                  <Input
+                    id="member-email"
+                    type="email"
+                    value={newEmail}
+                    onChange={(event) => setNewEmail(event.target.value)}
+                    placeholder="jane@example.com"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="member-role">Role</Label>
+                  <Select value={newRole} onValueChange={setNewRole}>
+                    <SelectTrigger id="member-role">
+                      <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ROLE_OPTIONS.map((role) => (
+                        <SelectItem key={role} value={role} className="capitalize">
+                          {role}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5 sm:col-span-2">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="member-create-login"
+                      checked={createLoginAccount}
+                      onCheckedChange={(checked) => setCreateLoginAccount(checked === true)}
+                    />
+                    <Label htmlFor="member-create-login" className="text-sm font-normal">
+                      Create login account (email auto-confirmed)
+                    </Label>
+                  </div>
+                </div>
+
+                {createLoginAccount && (
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="member-password">Password (min 8 chars)</Label>
+                    <div className="relative">
+                      <Input
+                        id="member-password"
+                        type={showNewPassword ? "text" : "password"}
+                        value={newPassword}
+                        onChange={(event) => setNewPassword(event.target.value)}
+                        placeholder="Create a temporary password"
+                        className="pr-10"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2"
+                        onClick={() => setShowNewPassword((value) => !value)}
+                        aria-label={showNewPassword ? "Hide password" : "Show password"}
+                      >
+                        {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {createLoginAccount && (
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="member-password-confirm">Confirm password</Label>
+                    <div className="relative">
+                      <Input
+                        id="member-password-confirm"
+                        type={showNewPasswordConfirm ? "text" : "password"}
+                        value={newPasswordConfirm}
+                        onChange={(event) => setNewPasswordConfirm(event.target.value)}
+                        placeholder="Re-enter password"
+                        className="pr-10"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2"
+                        onClick={() => setShowNewPasswordConfirm((value) => !value)}
+                        aria-label={showNewPasswordConfirm ? "Hide confirm password" : "Show confirm password"}
+                      >
+                        {showNewPasswordConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs"
+                onClick={() => setShowOptionalFields((value) => !value)}
+              >
+                {showOptionalFields ? "Hide profile picture" : "Set profile picture"}
+              </Button>
+
+              {showOptionalFields && (
+                <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm">Profile picture</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => setAvatarVariant((v) => v + 1)}
+                      >
+                        Refresh options
+                      </Button>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => setNewAvatarUrl("initials")}
+                      >
+                        Use initials
+                      </Button>
+                      {newAvatarUrl && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-xs"
+                          onClick={() => setNewAvatarUrl("")}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+                      {avatarOptions.map((option) => {
+                        const isSelected = newAvatarUrl === option
+                        return (
+                          <button
+                            key={option}
+                            type="button"
+                            className={cn(
+                              "rounded-lg border p-1 transition-colors",
+                              isSelected
+                                ? "border-primary bg-primary/10"
+                                : "border-border/70 hover:border-primary/40 hover:bg-accent/40",
+                            )}
+                            onClick={() => setNewAvatarUrl(option)}
+                            title="Select avatar"
+                          >
+                            <div
+                              className="h-10 w-10 rounded-md bg-cover bg-center"
+                              style={{ backgroundImage: `url(${option})` }}
+                              aria-label="Avatar option"
+                            />
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    <p className="text-xs text-muted-foreground">
+                      Current: {newAvatarUrl === "initials" ? getNameInitials(newName, newEmail) : newAvatarUrl ? "Custom avatar selected" : "No selection"}
+                    </p>
+                  </div>
+                </div>
+              )}
+              </div>
+            </div>
+
+            <DialogFooter className="sticky bottom-0 z-10 border-t border-border/60 bg-background/95 px-6 pb-6 pt-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto"
+                onClick={() => {
+                  setShowCreate(false)
+                  resetCreateForm()
+                }}
+              >
+                Cancel
+              </Button>
+              <Button className="w-full sm:w-auto" onClick={handleCreateMember} disabled={saving || !newName.trim()}>
                 <Plus className="mr-2 h-4 w-4" />
                 {saving ? "Saving..." : createLoginAccount ? "Create User" : "Create Member"}
               </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {createLoginAccount && (
-        <p className="-mt-4 text-xs text-muted-foreground">
-          Users created here are confirmed immediately and can sign in without email verification.
-        </p>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {error && (
@@ -520,55 +753,58 @@ export default function TeamPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Card className="glass">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Total users</p>
-                    <p className="mt-1 text-2xl font-semibold leading-none">{roleStats.total}</p>
-                  </div>
-                  <div className="rounded-full bg-primary/10 p-2 text-primary">
-                    <Users className="h-4 w-4" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="glass">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Admins</p>
-                    <p className="mt-1 text-2xl font-semibold leading-none">{roleStats.admin}</p>
-                  </div>
-                  <div className="rounded-full bg-amber-500/10 p-2 text-amber-600 dark:text-amber-400">
-                    <Shield className="h-4 w-4" />
+          <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-2 sm:gap-2 md:grid-cols-4 md:gap-3">
+            <Card className="border-border/70 bg-card/80 shadow-sm">
+              <CardContent className="flex justify-center p-2 sm:block sm:p-3 md:p-3.5">
+                <div className="text-center sm:text-left">
+                  <p className="text-[9px] uppercase tracking-wide text-muted-foreground sm:text-[11px]">Total</p>
+                  <div className="mt-1 inline-flex items-center gap-1.5 sm:gap-2">
+                    <p className="text-base font-semibold leading-none sm:text-xl md:text-2xl">{roleStats.total}</p>
+                    <div className="rounded-full bg-primary/10 p-1 text-primary sm:p-1.5">
+                      <Users className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                    </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
-            <Card className="glass">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Members</p>
-                    <p className="mt-1 text-2xl font-semibold leading-none">{roleStats.member}</p>
-                  </div>
-                  <div className="rounded-full bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400">
-                    <Users className="h-4 w-4" />
+
+            <Card className="border-border/70 bg-card/80 shadow-sm">
+              <CardContent className="flex justify-center p-2 sm:block sm:p-3 md:p-3.5">
+                <div className="text-center sm:text-left">
+                  <p className="text-[9px] uppercase tracking-wide text-muted-foreground sm:text-[11px]">Admins</p>
+                  <div className="mt-1 inline-flex items-center gap-1.5 sm:gap-2">
+                    <p className="text-base font-semibold leading-none sm:text-xl md:text-2xl">{roleStats.admin}</p>
+                    <div className="rounded-full bg-amber-500/10 p-1 text-amber-600 dark:text-amber-400 sm:p-1.5">
+                      <Shield className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                    </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
-            <Card className="glass">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Viewers</p>
-                    <p className="mt-1 text-2xl font-semibold leading-none">{roleStats.viewer}</p>
+
+            <Card className="border-border/70 bg-card/80 shadow-sm">
+              <CardContent className="flex justify-center p-2 sm:block sm:p-3 md:p-3.5">
+                <div className="text-center sm:text-left">
+                  <p className="text-[9px] uppercase tracking-wide text-muted-foreground sm:text-[11px]">Members</p>
+                  <div className="mt-1 inline-flex items-center gap-1.5 sm:gap-2">
+                    <p className="text-base font-semibold leading-none sm:text-xl md:text-2xl">{roleStats.member}</p>
+                    <div className="rounded-full bg-emerald-500/10 p-1 text-emerald-600 dark:text-emerald-400 sm:p-1.5">
+                      <Users className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                    </div>
                   </div>
-                  <div className="rounded-full bg-zinc-500/10 p-2 text-zinc-600 dark:text-zinc-400">
-                    <Eye className="h-4 w-4" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/70 bg-card/80 shadow-sm">
+              <CardContent className="flex justify-center p-2 sm:block sm:p-3 md:p-3.5">
+                <div className="text-center sm:text-left">
+                  <p className="text-[9px] uppercase tracking-wide text-muted-foreground sm:text-[11px]">Viewers</p>
+                  <div className="mt-1 inline-flex items-center gap-1.5 sm:gap-2">
+                    <p className="text-base font-semibold leading-none sm:text-xl md:text-2xl">{roleStats.viewer}</p>
+                    <div className="rounded-full bg-zinc-500/10 p-1 text-zinc-600 dark:text-zinc-400 sm:p-1.5">
+                      <Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -586,8 +822,8 @@ export default function TeamPage() {
             if (extraEntries.length === 0) return null
 
             return (
-              <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
-                <p className="mb-2 text-[11px] uppercase tracking-wide text-muted-foreground">Other roles</p>
+              <div className="rounded-lg border border-border/70 bg-card/80 p-2 shadow-sm sm:p-3 md:p-3.5">
+                <p className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground sm:text-[11px]">Other roles</p>
                 <div className="flex flex-wrap gap-1.5">
                   {extraEntries.map(([role, count]) => (
                     <Badge key={role} variant="outline" className="text-[11px] capitalize">
@@ -605,7 +841,7 @@ export default function TeamPage() {
                 <CardTitle className="text-base">Team Directory</CardTitle>
                 <p className="text-xs text-muted-foreground">Browse team members quickly and sort by role, projects, or task load.</p>
               </div>
-              <div className="flex items-center gap-1 rounded-md border p-0.5">
+              <div className="hidden items-center gap-1 rounded-md border p-0.5 md:flex">
                 <Button
                   variant={teamView === "list" ? "default" : "ghost"}
                   size="sm"
@@ -658,7 +894,7 @@ export default function TeamPage() {
               ) : (
                 <>
                   <div className="space-y-2 md:hidden">
-                    {sortedMembers.map((member) => {
+                    {visibleCardMembers.map((member) => {
                       const projectCount = projectCountByMember.get(member.id) || 0
                       const taskCount = taskCountByMember.get(member.id) || 0
                       return (
@@ -692,11 +928,21 @@ export default function TeamPage() {
                         </button>
                       )
                     })}
+                    {sortedMembers.length > cardVisibleCount && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => setCardVisibleCount((count) => count + 10)}
+                      >
+                        Show more
+                      </Button>
+                    )}
                   </div>
 
                   {teamView === "card" ? (
                     <div className="hidden gap-3 md:grid md:grid-cols-2 xl:grid-cols-3">
-                      {sortedMembers.map((member) => {
+                      {visibleCardMembers.map((member) => {
                         const projectCount = projectCountByMember.get(member.id) || 0
                         const taskCount = taskCountByMember.get(member.id) || 0
                         return (
@@ -722,6 +968,18 @@ export default function TeamPage() {
                           </div>
                         )
                       })}
+                      {sortedMembers.length > cardVisibleCount && (
+                        <div className="md:col-span-2 xl:col-span-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => setCardVisibleCount((count) => count + 10)}
+                          >
+                            Show more
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <Table className="hidden md:table">
@@ -730,7 +988,7 @@ export default function TeamPage() {
                           <TableHead className="h-9">
                             <button type="button" className="inline-flex items-center gap-1 transition-colors hover:text-foreground" onClick={() => toggleSort("member")}>Member {getSortIcon("member")}</button>
                           </TableHead>
-                          <TableHead className="h-9">
+                          <TableHead className="hidden h-9 lg:table-cell">
                             <button type="button" className="inline-flex items-center gap-1 transition-colors hover:text-foreground" onClick={() => toggleSort("email")}>Email {getSortIcon("email")}</button>
                           </TableHead>
                           <TableHead className="h-9">
@@ -746,7 +1004,7 @@ export default function TeamPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {sortedMembers.map((member) => {
+                        {pagedListMembers.map((member) => {
       const draftRole = draftRoles[member.id] || member.role
       const draftName = draftNames[member.id] ?? member.name
       const roleChanged = draftRole !== member.role
@@ -779,7 +1037,7 @@ export default function TeamPage() {
                                   </div>
                                 </div>
                               </TableCell>
-                              <TableCell className="py-2 text-sm text-muted-foreground">
+                              <TableCell className="hidden py-2 text-sm text-muted-foreground lg:table-cell">
                                 <span className="inline-flex items-center gap-1"><Mail className="h-3 w-3" />{member.email || "No email"}</span>
                               </TableCell>
                               <TableCell className="py-2">
@@ -844,6 +1102,38 @@ export default function TeamPage() {
                         })}
                       </TableBody>
                     </Table>
+                  )}
+
+                  {teamView === "list" && sortedMembers.length > listPageSize && (
+                    <div className="hidden items-center justify-between pt-2 text-sm md:flex">
+                      <p className="text-muted-foreground">
+                        Showing {(listPage - 1) * listPageSize + 1}-
+                        {Math.min(listPage * listPageSize, sortedMembers.length)} of {sortedMembers.length}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={listPage <= 1}
+                          onClick={() => setListPage((page) => Math.max(1, page - 1))}
+                        >
+                          Previous
+                        </Button>
+                        <span className="text-xs text-muted-foreground">
+                          Page {listPage} of {listTotalPages}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={listPage >= listTotalPages}
+                          onClick={() => setListPage((page) => Math.min(listTotalPages, page + 1))}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
                   )}
                 </>
               )}
