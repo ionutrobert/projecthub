@@ -90,6 +90,12 @@ type ActivityFeedItem = {
   tone: "neutral" | "success" | "warn";
 };
 
+type ProjectDetailsTab = "tasks" | "members" | "activities" | "about";
+
+function isProjectDetailsTab(value: string): value is ProjectDetailsTab {
+  return value === "tasks" || value === "members" || value === "activities" || value === "about";
+}
+
 type ProjectTimelineBucket = "overdue" | "today" | "upcoming" | "later" | "done" | "no_due";
 
 const getClientDisplayName = (clientName?: string | null) => {
@@ -693,6 +699,11 @@ export default function ProjectDetailsClient({
   const [activitiesHasMore, setActivitiesHasMore] = useState(false);
   const [projectColor, setProjectColor] = useState("#8B5CF6");
   const [projectIcon, setProjectIcon] = useState("FolderKanban");
+  const [activeTab, setActiveTab] = useState<ProjectDetailsTab>(() => {
+    if (typeof window === "undefined") return "tasks";
+    const stored = window.sessionStorage.getItem("projecthub-project-details-active-tab");
+    return stored && isProjectDetailsTab(stored) ? stored : "tasks";
+  });
   const [membersEditMode, setMembersEditMode] = useState(false);
   const [aboutEditMode, setAboutEditMode] = useState(false);
   const [savingMembers, setSavingMembers] = useState(false);
@@ -705,6 +716,11 @@ export default function ProjectDetailsClient({
   const [newTaskPriority, setNewTaskPriority] = useState<NewProjectTask["priority"]>("medium");
   const [newTaskDueDate, setNewTaskDueDate] = useState<Date | undefined>(undefined);
   const [newTaskAssigneeId, setNewTaskAssigneeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.setItem("projecthub-project-details-active-tab", activeTab);
+  }, [activeTab]);
 
   const selectedMembers = useMemo(
     () => members.filter((member) => memberIds.includes(member.id)),
@@ -1145,7 +1161,12 @@ export default function ProjectDetailsClient({
                 </div>
               </div>
 
-              <Tabs defaultValue="tasks" className="space-y-3">
+              <Tabs
+                value={activeTab}
+                onValueChange={(value) => isProjectDetailsTab(value) && setActiveTab(value)}
+                defaultValue="tasks"
+                className="space-y-3"
+              >
                 <TabsList className="grid h-auto w-full grid-cols-4 gap-1 border-0 bg-transparent p-0 lg:flex lg:items-center lg:justify-start lg:gap-2 lg:px-1 lg:rounded-none">
                   <TabsTrigger value="tasks" className="relative h-10 flex-col items-center justify-center gap-0.5 rounded-md border border-border/60 bg-muted/30 px-1 text-[9px] font-medium data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/60 sm:h-10 sm:flex-row sm:justify-start sm:gap-2 sm:px-2 sm:text-xs lg:h-9 lg:flex-none lg:gap-1.5 lg:px-2.5 lg:text-sm lg:hover:bg-accent/40">
                     <ClipboardList className="h-3.5 w-3.5" />

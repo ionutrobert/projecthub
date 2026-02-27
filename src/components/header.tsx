@@ -106,12 +106,15 @@ export function Header() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    if (searchQuery.trim()) {
-      router.push(`/projects?q=${encodeURIComponent(searchQuery)}`)
-      setSearchExpanded(false)
-      setSearchQuery("")
-      setSearchResults([])
+
+    if (searchLoading) return
+
+    const firstResult = searchResults[0]
+    if (!firstResult) {
+      return
     }
+
+    goToSearchResult(firstResult)
   }
 
   const goToSearchResult = (result: SearchResult) => {
@@ -209,7 +212,7 @@ export function Header() {
                 type: "person",
                 title: member.name,
                 subtitle: member.email || "Team member",
-                href: "/team",
+                href: `/team/${member.id}`,
               }))
           : []
 
@@ -309,7 +312,7 @@ export function Header() {
         {navStyle === "sidebar" && (
           <button
             onClick={toggleMobileMenu}
-            className="p-2 rounded-lg border border-border bg-background/50 lg:hidden shrink-0 focus:outline-none focus:ring-2 focus:ring-primary"
+            className="p-2 rounded-lg border border-border bg-background/50 md:hidden shrink-0 focus:outline-none focus:ring-2 focus:ring-primary"
             aria-label={mobileMenuOpen ? "Close sidebar" : "Open sidebar"}
             aria-expanded={mobileMenuOpen}
             aria-controls="sidebar-navigation"
@@ -335,18 +338,31 @@ export function Header() {
 
         {/* Right side - Search, Notifications, Theme, User */}
         <div className="flex items-center gap-2 md:gap-3 shrink-0">
+          {/* Tablet sidebar menu button (move hamburger to top-right on tablet) */}
+          {navStyle === "sidebar" && (
+            <button
+              onClick={toggleMobileMenu}
+              className="hidden p-2 rounded-lg border border-border bg-background/50 md:inline-flex lg:hidden shrink-0 focus:outline-none focus:ring-2 focus:ring-primary"
+              aria-label={mobileMenuOpen ? "Close sidebar" : "Open sidebar"}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="sidebar-navigation"
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          )}
+
           {/* Expandable search button - on left for mobile */}
           <div className="relative">
             {searchExpanded ? (
               <form onSubmit={handleSearch} className="flex items-center" role="search">
-                <label htmlFor="header-search-input" className="sr-only">Search projects</label>
+                <label htmlFor="header-search-input" className="sr-only">Search anything</label>
                 <input
                   id="header-search-input"
                   ref={searchInputRef}
                   type="search"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search projects..."
+                  placeholder="Search anything..."
                   className="h-9 w-40 sm:w-48 rounded-lg border border-input bg-background pl-3 pr-8 text-sm animate-in fade-in slide-in-from-right-2 focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 <button
@@ -408,7 +424,7 @@ export function Header() {
 
           {/* Mobile navigation dropdown - on right for top nav mode on tablet/mobile */}
           {navStyle === "top" && (
-            <div className="relative lg:hidden" ref={navDropdownRef}>
+            <div className="relative order-last lg:hidden" ref={navDropdownRef}>
               <button
                 onClick={() => setNavDropdownOpen(!navDropdownOpen)}
                 className="flex items-center gap-1 px-3 py-2 rounded-lg border border-border bg-background/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -591,7 +607,7 @@ export function Header() {
           {/* Settings - only show when top nav mode and on desktop */}
           {navStyle === "top" && (
             <Link href="/settings">
-              <Button variant="ghost" size="icon" className="hidden md:flex shrink-0 tooltip" data-tooltip="Settings">
+              <Button variant="ghost" size="icon" className="hidden xl:flex shrink-0 tooltip" data-tooltip="Settings">
                 <Settings className="h-5 w-5" />
               </Button>
             </Link>
@@ -599,9 +615,9 @@ export function Header() {
 
           {/* User - only show when top nav mode */}
           {loading ? (
-            <div className="h-8 w-24 rounded-md bg-muted animate-pulse hidden md:block" />
+            <div className="h-8 w-24 rounded-md bg-muted animate-pulse hidden xl:block" />
           ) : user && navStyle === "top" ? (
-              <div className="hidden md:flex items-center gap-2 pl-2 md:pl-3 border-l border-border shrink-0">
+              <div className="hidden xl:flex items-center gap-2 pl-2 md:pl-3 border-l border-border shrink-0">
                 <UserAvatar profile={profile} user={avatarUser} sizeClass="h-8 w-8" textClass="text-sm" />
                 <div className="overflow-hidden">
                   <p className="text-sm font-medium truncate max-w-[100px] md:max-w-[150px]">{displayName}</p>

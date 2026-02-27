@@ -25,6 +25,9 @@ import { CSS } from "@dnd-kit/utilities"
 import {
   CalendarDays,
   Check,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
   ChevronsUpDown,
   Clock3,
   ChevronLeft,
@@ -89,6 +92,10 @@ type Task = {
 
 type ViewMode = "kanban" | "list" | "timeline" | "calendar"
 type TimelineBucket = "overdue" | "today" | "upcoming" | "later" | "done" | "no_due"
+
+function isViewMode(value: string): value is ViewMode {
+  return value === "kanban" || value === "list" || value === "timeline" || value === "calendar"
+}
 
 type Project = {
   id: string
@@ -407,7 +414,11 @@ export default function TasksPage() {
   const [search, setSearch] = useState(searchParams.get("q") || "")
   const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get("q") || "")
   
-  const [viewMode, setViewMode] = useState<ViewMode>("kanban")
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    if (typeof window === "undefined") return "kanban"
+    const stored = sessionStorage.getItem("projecthub-tasks-view-mode")
+    return stored && isViewMode(stored) ? stored : "kanban"
+  })
   const [listSortColumn, setListSortColumn] = useState<ListColumnId>("dueDate")
   const [listSortDirection, setListSortDirection] = useState<"asc" | "desc">("asc")
   const [listPage, setListPage] = useState(1)
@@ -469,6 +480,21 @@ export default function TasksPage() {
     if (typeof window === "undefined") return
     sessionStorage.setItem("projecthub-tasks-my-only", String(myTasksOnly))
   }, [myTasksOnly])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    sessionStorage.setItem("projecthub-tasks-view-mode", viewMode)
+  }, [viewMode])
+
+  useEffect(() => {
+    if (userLoading) return
+    if (profile) return
+
+    setViewMode("kanban")
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("projecthub-tasks-view-mode")
+    }
+  }, [profile, userLoading])
 
   useEffect(() => {
     if (!projectQueryId) return
@@ -1613,8 +1639,11 @@ export default function TasksPage() {
       ) : viewMode === "list" ? (
         <Card className="glass">
           <CardHeader className="flex flex-col gap-2 border-b border-border/60 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="text-base">Tasks table</CardTitle>
-            <div className="flex items-center gap-2">
+            <div>
+              <CardTitle className="text-base">Tasks table</CardTitle>
+              <p className="text-xs text-muted-foreground">Sorted, filter-aware list for quick scanning.</p>
+            </div>
+            <div className="hidden xl:flex items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm">
@@ -1651,11 +1680,16 @@ export default function TasksPage() {
                 <button
                   key={task.id}
                   type="button"
-                  className="w-full rounded-lg border bg-card p-3 text-left hover:bg-accent/40 transition-colors"
+                  className="w-full rounded-lg border border-border/70 bg-card p-3 text-left transition-colors hover:bg-accent/40"
                   onClick={() => openEditDialog(task)}
                 >
-                  <p className="text-sm font-medium leading-snug">{task.title}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{getProjectName(projects, task.project_id)}</p>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 text-sm font-medium leading-snug line-clamp-2">{task.title}</p>
+                    <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium", getDueInLabel(task.due_date, task.status).tone)}>
+                      {formatDate(task.due_date)}
+                    </span>
+                  </div>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">{getProjectName(projects, task.project_id)}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <Badge className={cn("text-[11px]", statusConfig[task.status].color)}>
                       {statusConfig[task.status].label}
@@ -1663,12 +1697,9 @@ export default function TasksPage() {
                     <Badge variant={priorityConfig[task.priority].variant} className="text-[11px]">
                       {priorityConfig[task.priority].label}
                     </Badge>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">{getMemberName(members, task.assignee_member_id)}</span>
-                    <span className={cn("text-muted-foreground", isOverdue(task.due_date) && task.status !== "done" && "text-destructive font-medium")}>
-                      {formatDate(task.due_date)}
-                    </span>
+                    <Badge variant="outline" className="text-[11px]">
+                      {getMemberName(members, task.assignee_member_id)}
+                    </Badge>
                   </div>
                 </button>
               ))}
@@ -1679,16 +1710,21 @@ export default function TasksPage() {
                 <TableHeader>
                   <TableRow>
                     {visibleListColumns.task && (
-                      <TableHead className="w-[280px]">
+                      <TableHead className="w-[320px]">
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1"
+                          className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
                           onClick={() => {
                             setListSortColumn("task")
                             setListSortDirection((prev) => (listSortColumn === "task" && prev === "asc" ? "desc" : "asc"))
                           }}
                         >
                           Task
+                          {listSortColumn === "task" ? (
+                            listSortDirection === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+                          ) : (
+                            <ArrowUpDown className="h-3.5 w-3.5 opacity-50" />
+                          )}
                         </button>
                       </TableHead>
                     )}
@@ -1696,13 +1732,18 @@ export default function TasksPage() {
                       <TableHead>
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1"
+                          className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
                           onClick={() => {
                             setListSortColumn("project")
                             setListSortDirection((prev) => (listSortColumn === "project" && prev === "asc" ? "desc" : "asc"))
                           }}
                         >
                           Project
+                          {listSortColumn === "project" ? (
+                            listSortDirection === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+                          ) : (
+                            <ArrowUpDown className="h-3.5 w-3.5 opacity-50" />
+                          )}
                         </button>
                       </TableHead>
                     )}
@@ -1710,13 +1751,18 @@ export default function TasksPage() {
                       <TableHead>
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1"
+                          className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
                           onClick={() => {
                             setListSortColumn("status")
                             setListSortDirection((prev) => (listSortColumn === "status" && prev === "asc" ? "desc" : "asc"))
                           }}
                         >
                           Status
+                          {listSortColumn === "status" ? (
+                            listSortDirection === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+                          ) : (
+                            <ArrowUpDown className="h-3.5 w-3.5 opacity-50" />
+                          )}
                         </button>
                       </TableHead>
                     )}
@@ -1724,13 +1770,18 @@ export default function TasksPage() {
                       <TableHead>
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1"
+                          className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
                           onClick={() => {
                             setListSortColumn("priority")
                             setListSortDirection((prev) => (listSortColumn === "priority" && prev === "asc" ? "desc" : "asc"))
                           }}
                         >
                           Priority
+                          {listSortColumn === "priority" ? (
+                            listSortDirection === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+                          ) : (
+                            <ArrowUpDown className="h-3.5 w-3.5 opacity-50" />
+                          )}
                         </button>
                       </TableHead>
                     )}
@@ -1738,13 +1789,18 @@ export default function TasksPage() {
                       <TableHead>
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1"
+                          className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
                           onClick={() => {
                             setListSortColumn("assignee")
                             setListSortDirection((prev) => (listSortColumn === "assignee" && prev === "asc" ? "desc" : "asc"))
                           }}
                         >
                           Assignee
+                          {listSortColumn === "assignee" ? (
+                            listSortDirection === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+                          ) : (
+                            <ArrowUpDown className="h-3.5 w-3.5 opacity-50" />
+                          )}
                         </button>
                       </TableHead>
                     )}
@@ -1752,57 +1808,76 @@ export default function TasksPage() {
                       <TableHead>
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1"
+                          className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
                           onClick={() => {
                             setListSortColumn("dueDate")
                             setListSortDirection((prev) => (listSortColumn === "dueDate" && prev === "asc" ? "desc" : "asc"))
                           }}
                         >
                           Due Date
+                          {listSortColumn === "dueDate" ? (
+                            listSortDirection === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+                          ) : (
+                            <ArrowUpDown className="h-3.5 w-3.5 opacity-50" />
+                          )}
                         </button>
                       </TableHead>
                     )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pagedListTasks.map((task) => (
-                    <TableRow
-                      key={task.id}
-                      className="cursor-pointer"
-                      onClick={() => openEditDialog(task)}
-                    >
-                      {visibleListColumns.task && <TableCell className="font-medium">{task.title}</TableCell>}
-                      {visibleListColumns.project && (
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs">
-                            {getProjectName(projects, task.project_id)}
-                          </Badge>
-                        </TableCell>
-                      )}
-                      {visibleListColumns.status && (
-                        <TableCell>
-                          <Badge className={cn("text-xs", statusConfig[task.status].color)}>
-                            {statusConfig[task.status].label}
-                          </Badge>
-                        </TableCell>
-                      )}
-                      {visibleListColumns.priority && (
-                        <TableCell>
-                          <Badge variant={priorityConfig[task.priority].variant} className="text-xs">
-                            {priorityConfig[task.priority].label}
-                          </Badge>
-                        </TableCell>
-                      )}
-                      {visibleListColumns.assignee && <TableCell>{getMemberName(members, task.assignee_member_id)}</TableCell>}
-                      {visibleListColumns.dueDate && (
-                        <TableCell>
-                          <span className={cn(isOverdue(task.due_date) && task.status !== "done" && "text-destructive font-medium")}>
-                            {formatDate(task.due_date)}
-                          </span>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
+                  {pagedListTasks.map((task) => {
+                    const dueInfo = getDueInLabel(task.due_date, task.status)
+                    return (
+                      <TableRow
+                        key={task.id}
+                        className="cursor-pointer"
+                        onClick={() => openEditDialog(task)}
+                      >
+                        {visibleListColumns.task && <TableCell className="font-medium">{task.title}</TableCell>}
+                        {visibleListColumns.project && (
+                          <TableCell>
+                            <span className="block truncate text-xs text-muted-foreground">
+                              {getProjectName(projects, task.project_id)}
+                            </span>
+                          </TableCell>
+                        )}
+                        {visibleListColumns.status && (
+                          <TableCell>
+                            <Badge className={cn("px-1.5 py-0 text-[10px]", statusConfig[task.status].color)}>
+                              {statusConfig[task.status].label}
+                            </Badge>
+                          </TableCell>
+                        )}
+                        {visibleListColumns.priority && (
+                          <TableCell>
+                            <Badge variant={priorityConfig[task.priority].variant} className="text-xs">
+                              {priorityConfig[task.priority].label}
+                            </Badge>
+                          </TableCell>
+                        )}
+                        {visibleListColumns.assignee && (
+                          <TableCell>
+                            <span className="block truncate text-xs text-muted-foreground">
+                              {getMemberName(members, task.assignee_member_id)}
+                            </span>
+                          </TableCell>
+                        )}
+                        {visibleListColumns.dueDate && (
+                          <TableCell>
+                            <div className="space-y-0.5 text-[11px] leading-tight">
+                              <span className={cn("block", isOverdue(task.due_date) && task.status !== "done" && "text-destructive font-medium")}>
+                                {formatDate(task.due_date)}
+                              </span>
+                              <span className={cn("block text-[10px]", dueInfo.tone)}>
+                                {dueInfo.label}
+                              </span>
+                            </div>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>

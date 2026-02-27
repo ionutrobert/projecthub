@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useMemo,
   useState,
@@ -27,15 +28,29 @@ function useTabsContext() {
 
 export function Tabs({
   defaultValue,
+  value,
+  onValueChange,
   className,
   children,
 }: {
   defaultValue: string
+  value?: string
+  onValueChange?: (value: string) => void
   className?: string
   children: ReactNode
 }) {
-  const [value, setValue] = useState(defaultValue)
-  const contextValue = useMemo(() => ({ value, setValue }), [value])
+  const [internalValue, setInternalValue] = useState(defaultValue)
+  const selectedValue = value ?? internalValue
+
+  const setValue = useCallback((nextValue: string) => {
+    if (onValueChange) {
+      onValueChange(nextValue)
+      return
+    }
+    setInternalValue(nextValue)
+  }, [onValueChange])
+
+  const contextValue = useMemo(() => ({ value: selectedValue, setValue }), [selectedValue, setValue])
 
   return (
     <TabsContext.Provider value={contextValue}>

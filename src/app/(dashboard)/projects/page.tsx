@@ -289,7 +289,7 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const saved = window.localStorage.getItem("projecthub-projects-desktop-view");
+    const saved = window.sessionStorage.getItem("projecthub-projects-desktop-view");
     if (saved === "list" || saved === "card") {
       setDesktopView(saved);
     }
@@ -297,8 +297,18 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem("projecthub-projects-desktop-view", desktopView);
+    window.sessionStorage.setItem("projecthub-projects-desktop-view", desktopView);
   }, [desktopView]);
+
+  useEffect(() => {
+    if (userLoading) return;
+    if (profile) return;
+
+    setDesktopView("list");
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem("projecthub-projects-desktop-view");
+    }
+  }, [profile, userLoading]);
 
   useEffect(() => {
     if (!loading) return;
@@ -998,7 +1008,7 @@ export default function ProjectsPage() {
             </div>
 
             <div className="divide-y divide-border md:hidden">
-              {sortedProjects.map((project, index) => {
+              {sortedProjects.map((project) => {
                 const assigneeMembers = getProjectAssignees(project);
                 const assigneeNames = getProjectAssigneeNames(project).join(", ");
                 const assigneeInitials = assigneeMembers
@@ -1009,8 +1019,7 @@ export default function ProjectsPage() {
                 return (
                   <div
                     key={project.id}
-                    className={`flex flex-col gap-2.5 p-3 hover:bg-accent/20 transition-all duration-300 card-hover animate-slide-up cursor-pointer sm:p-4 ${highlightProjectId === project.id ? "ring-1 ring-amber-400/50 bg-amber-400/5" : ""}`}
-                    style={{ animationDelay: `${index * 50}ms` }}
+                    className={`flex flex-col gap-2.5 p-3 hover:bg-accent/20 transition-all duration-300 card-hover cursor-pointer sm:p-4 ${highlightProjectId === project.id ? "ring-1 ring-amber-400/50 bg-amber-400/5" : ""}`}
                     role="button"
                     tabIndex={0}
                     onClick={() => {
@@ -1146,15 +1155,14 @@ export default function ProjectsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {desktopSortedProjects.map((project, index) => {
+                  {desktopSortedProjects.map((project) => {
                     const assignees = getProjectAssigneeNames(project);
                     const assigneeMembers = getProjectAssignees(project);
                     const deadlineInfo = getDeadlineCopy(project.deadline);
                     return (
                       <tr
                         key={project.id}
-                        className={`border-b border-border/70 hover:bg-accent/20 transition-all duration-300 animate-slide-up ${highlightProjectId === project.id ? "bg-amber-400/5" : ""}`}
-                        style={{ animationDelay: `${index * 50}ms` }}
+                        className={`border-b border-border/70 hover:bg-accent/20 transition-all duration-300 ${highlightProjectId === project.id ? "bg-amber-400/5" : ""}`}
                       >
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3 min-w-0">
@@ -1276,7 +1284,7 @@ export default function ProjectsPage() {
               ) : (
                 <div className="p-3 md:p-4">
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {desktopSortedProjects.map((project, index) => {
+                    {desktopSortedProjects.map((project) => {
                       const assigneeMembers = getProjectAssignees(project);
                       const deadlineInfo = getDeadlineCopy(project.deadline);
                       const progress = getProjectCompletionEstimate(project.status, project.task_count);
@@ -1285,7 +1293,6 @@ export default function ProjectsPage() {
                         <div
                           key={project.id}
                           className={`rounded-xl border border-border/70 bg-background/60 p-3 transition-all duration-300 hover:border-primary/40 hover:bg-accent/10 ${highlightProjectId === project.id ? "ring-1 ring-amber-400/50 bg-amber-400/5" : ""}`}
-                          style={{ animationDelay: `${index * 40}ms` }}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <button

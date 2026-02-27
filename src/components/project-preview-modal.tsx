@@ -168,6 +168,12 @@ type Props<TProject extends Project = Project> = {
   onOpenProjectPage: (projectId: string) => void;
 };
 
+type ProjectPreviewTab = "tasks" | "members" | "activities" | "about";
+
+function isProjectPreviewTab(value: string): value is ProjectPreviewTab {
+  return value === "tasks" || value === "members" || value === "activities" || value === "about";
+}
+
 const getClientDisplayName = (clientName?: string | null) => {
   const normalized = clientName?.trim();
   return normalized ? normalized : "Internal project";
@@ -208,6 +214,11 @@ export default function ProjectPreviewModal<TProject extends Project>({
   const [quickEditLabels, setQuickEditLabels] = useState<string[]>([]);
   const [quickEditLabelInput, setQuickEditLabelInput] = useState("");
   const [aboutDescriptionExpanded, setAboutDescriptionExpanded] = useState(false);
+  const [activeTab, setActiveTab] = useState<ProjectPreviewTab>(() => {
+    if (typeof window === "undefined") return "tasks";
+    const stored = window.sessionStorage.getItem("projecthub-project-preview-active-tab");
+    return stored && isProjectPreviewTab(stored) ? stored : "tasks";
+  });
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [clientPickerOpen, setClientPickerOpen] = useState(false);
   const [clients, setClients] = useState<ClientOption[]>([]);
@@ -224,6 +235,11 @@ export default function ProjectPreviewModal<TProject extends Project>({
       window.removeEventListener("resize", updateViewportFlag);
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.setItem("projecthub-project-preview-active-tab", activeTab);
+  }, [activeTab]);
 
   const getMemberName = (memberId?: string | null) => {
     if (!memberId) return "Unassigned";
@@ -512,7 +528,7 @@ export default function ProjectPreviewModal<TProject extends Project>({
           <DialogDescription>Detailed preview and quick edit for selected project.</DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="tasks" className="space-y-0">
+        <Tabs value={activeTab} onValueChange={(value) => isProjectPreviewTab(value) && setActiveTab(value)} defaultValue="tasks" className="space-y-0">
           <Card className="glass relative w-full border-0 bg-transparent shadow-none">
             <CardHeader className="sticky top-0 z-20 border-b border-border/60 bg-background/90 pb-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:pb-3">
             <button
