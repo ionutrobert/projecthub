@@ -1064,47 +1064,8 @@ export default function TasksPage() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Tasks</h1>
           <p className="text-muted-foreground text-sm sm:text-base">Manage tasks across all projects.</p>
-
-          <div className="mt-3 flex w-full items-center gap-1 rounded-md border p-0.5 sm:hidden">
-            <Button
-              variant={viewMode === "kanban" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("kanban")}
-              className={cn("h-8 flex-1 gap-1.5", viewMode !== "kanban" && "text-muted-foreground")}
-            >
-              <LayoutGrid className="h-4 w-4" />
-              <span>Kanban</span>
-            </Button>
-            <Button
-              variant={viewMode === "list" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("list")}
-              className={cn("h-8 flex-1 gap-1.5", viewMode !== "list" && "text-muted-foreground")}
-            >
-              <List className="h-4 w-4" />
-              <span>List</span>
-            </Button>
-            <Button
-              variant={viewMode === "timeline" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("timeline")}
-              className={cn("h-8 flex-1 gap-1.5", viewMode !== "timeline" && "text-muted-foreground")}
-            >
-              <Clock3 className="h-4 w-4" />
-              <span>Timeline</span>
-            </Button>
-            <Button
-              variant={viewMode === "calendar" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("calendar")}
-              className={cn("h-8 flex-1 gap-1.5", viewMode !== "calendar" && "text-muted-foreground")}
-            >
-              <CalendarDays className="h-4 w-4" />
-              <span>Calendar</span>
-            </Button>
-          </div>
         </div>
-        
+
         <div className="flex shrink-0 flex-col items-end gap-2">
           {canEdit && (
             <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
@@ -1252,6 +1213,45 @@ export default function TasksPage() {
             </Button>
           </div>
         </div>
+      </div>
+
+      <div className="mt-3 flex w-full items-center gap-1 rounded-md border p-0.5 sm:hidden">
+        <Button
+          variant={viewMode === "kanban" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => setViewMode("kanban")}
+          className={cn("h-10 flex-1 flex-col gap-0.5 px-1 text-[10px]", viewMode !== "kanban" && "text-muted-foreground")}
+        >
+          <LayoutGrid className="h-3.5 w-3.5" />
+          <span>Kanban</span>
+        </Button>
+        <Button
+          variant={viewMode === "list" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => setViewMode("list")}
+          className={cn("h-10 flex-1 flex-col gap-0.5 px-1 text-[10px]", viewMode !== "list" && "text-muted-foreground")}
+        >
+          <List className="h-3.5 w-3.5" />
+          <span>List</span>
+        </Button>
+        <Button
+          variant={viewMode === "timeline" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => setViewMode("timeline")}
+          className={cn("h-10 flex-1 flex-col gap-0.5 px-1 text-[10px]", viewMode !== "timeline" && "text-muted-foreground")}
+        >
+          <Clock3 className="h-3.5 w-3.5" />
+          <span>Timeline</span>
+        </Button>
+        <Button
+          variant={viewMode === "calendar" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => setViewMode("calendar")}
+          className={cn("h-10 flex-1 flex-col gap-0.5 px-1 text-[10px]", viewMode !== "calendar" && "text-muted-foreground")}
+        >
+          <CalendarDays className="h-3.5 w-3.5" />
+          <span>Calendar</span>
+        </Button>
       </div>
 
       {/* Filters */}
@@ -2013,9 +2013,10 @@ export default function TasksPage() {
                             {isLoadingMore ? "Loading..." : canLoadMore ? "Load 5 more" : "No more tasks"}
                           </Button>
                         </div>
-                      )}
-                    </div>
-                  </div>
+          )}
+        </div>
+      </div>
+
                 )
               })
             })()}
@@ -2024,11 +2025,12 @@ export default function TasksPage() {
       ) : viewMode === "calendar" ? (
         <div className="space-y-6">
           {/* Calendar Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <div className="flex items-center justify-between gap-1.5 sm:justify-start sm:gap-2">
               <Button
                 variant="outline"
                 size="icon"
+                className="h-8 w-8 sm:h-10 sm:w-10"
                 onClick={() => {
                   const newDate = new Date(calendarDate)
                   newDate.setMonth(newDate.getMonth() - 1)
@@ -2038,12 +2040,13 @@ export default function TasksPage() {
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <h2 className="text-xl font-semibold min-w-[180px] text-center">
+              <h2 className="min-w-[132px] text-center text-base font-semibold sm:min-w-[180px] sm:text-xl">
                 {calendarDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
               </h2>
               <Button
                 variant="outline"
                 size="icon"
+                className="h-8 w-8 sm:h-10 sm:w-10"
                 onClick={() => {
                   const newDate = new Date(calendarDate)
                   newDate.setMonth(newDate.getMonth() + 1)
@@ -2057,6 +2060,7 @@ export default function TasksPage() {
             <Button
               variant="outline"
               size="sm"
+              className="h-8 text-xs sm:h-9 sm:text-sm"
               onClick={() => {
                 const today = new Date()
                 setCalendarDate(today)
@@ -2067,7 +2071,7 @@ export default function TasksPage() {
             </Button>
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] xl:items-start">
+          <div className="grid gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] xl:items-start">
           {/* Calendar Grid */}
           <Card className="overflow-hidden">
             <CardContent className="p-0">
@@ -2076,7 +2080,7 @@ export default function TasksPage() {
                 {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
                   <div
                     key={day}
-                    className="py-3 text-center text-sm font-medium text-muted-foreground"
+                    className="py-2 text-center text-[10px] font-medium text-muted-foreground sm:py-3 sm:text-sm"
                   >
                     {day}
                   </div>
@@ -2105,9 +2109,9 @@ export default function TasksPage() {
                     days.push(
                       <div
                         key={`prev-${i}`}
-                        className="min-h-[100px] border-b border-r p-2 bg-muted/10 opacity-50"
+                        className="min-h-[72px] border-b border-r bg-muted/10 p-1 opacity-50 sm:min-h-[100px] sm:p-2"
                       >
-                        <span className="text-sm text-muted-foreground">{prevDate.getDate()}</span>
+                        <span className="text-xs text-muted-foreground sm:text-sm">{prevDate.getDate()}</span>
                       </div>
                     )
                   }
@@ -2125,30 +2129,30 @@ export default function TasksPage() {
                         key={day}
                         onClick={() => setCalendarSelectedDate(date)}
                         className={cn(
-                          "min-h-[100px] border-b border-r p-2 cursor-pointer transition-colors hover:bg-accent/50",
+                          "min-h-[72px] border-b border-r p-1 cursor-pointer transition-colors hover:bg-accent/50 sm:min-h-[100px] sm:p-2",
                           isSelected && "bg-primary/10",
                           isToday && "bg-primary/5"
                         )}
                       >
                         <div className="flex items-center justify-between">
                           <span className={cn(
-                            "text-sm font-medium",
-                            isToday && "bg-primary text-primary-foreground rounded-full w-7 h-7 flex items-center justify-center"
+                            "text-xs font-medium sm:text-sm",
+                            isToday && "flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground sm:h-7 sm:w-7"
                           )}>
                             {day}
                           </span>
                           {dayTasks.length > 0 && (
-                            <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
+                            <Badge variant="secondary" className="h-4 px-1 text-[9px] sm:h-5 sm:px-1.5 sm:text-[10px]">
                               {dayTasks.length}
                             </Badge>
                           )}
                         </div>
                         <div className="mt-1 space-y-1">
-                          {dayTasks.slice(0, 3).map((task) => (
+                          {dayTasks.slice(0, 2).map((task) => (
                             <div
                               key={task.id}
                               className={cn(
-                                "text-[10px] px-1.5 py-0.5 rounded truncate cursor-pointer hover:opacity-80",
+                                "cursor-pointer truncate rounded px-1 py-0.5 text-[9px] hover:opacity-80 sm:px-1.5 sm:text-[10px]",
                                 task.priority === "urgent" && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
                                 task.priority === "high" && "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
                                 task.priority === "medium" && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
@@ -2162,9 +2166,9 @@ export default function TasksPage() {
                               {task.title}
                             </div>
                           ))}
-                          {dayTasks.length > 3 && (
-                            <div className="text-[10px] text-muted-foreground pl-1">
-                              +{dayTasks.length - 3} more
+                          {dayTasks.length > 2 && (
+                            <div className="pl-1 text-[9px] text-muted-foreground sm:text-[10px]">
+                              +{dayTasks.length - 2} more
                             </div>
                           )}
                         </div>
@@ -2179,9 +2183,9 @@ export default function TasksPage() {
                       days.push(
                         <div
                           key={`next-${i}`}
-                          className="min-h-[100px] border-b border-r p-2 bg-muted/10 opacity-50"
+                          className="min-h-[72px] border-b border-r bg-muted/10 p-1 opacity-50 sm:min-h-[100px] sm:p-2"
                         >
-                          <span className="text-sm text-muted-foreground">{i}</span>
+                          <span className="text-xs text-muted-foreground sm:text-sm">{i}</span>
                         </div>
                       )
                     }
@@ -2197,7 +2201,7 @@ export default function TasksPage() {
           {calendarSelectedDate && (
             <Card className="xl:max-h-[740px] xl:overflow-auto">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
                   <CalendarIcon className="h-4 w-4" />
                   {calendarSelectedDate.toLocaleDateString("en-US", { 
                     weekday: "long", 
@@ -2216,7 +2220,7 @@ export default function TasksPage() {
                   if (selectedTasks.length === 0) {
                     return (
                       <div className="text-center py-8">
-                        <div className="w-12 h-12 rounded-full bg-muted mx-auto flex items-center justify-center mb-3">
+                        <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-muted sm:h-12 sm:w-12">
                           <CalendarIcon className="h-6 w-6 text-muted-foreground" />
                         </div>
                         <p className="text-muted-foreground">No tasks due on this date</p>
@@ -2240,7 +2244,7 @@ export default function TasksPage() {
                       {selectedTasks.map((task) => (
                         <div
                           key={task.id}
-                          className="flex items-center gap-3 p-3 rounded-lg border hover:bg-accent/50 cursor-pointer transition-colors"
+                          className="flex cursor-pointer items-center gap-2 rounded-lg border p-2.5 transition-colors hover:bg-accent/50 sm:gap-3 sm:p-3"
                           onClick={() => openEditDialog(task)}
                         >
                           <Checkbox
@@ -2258,13 +2262,13 @@ export default function TasksPage() {
                           )} />
                           <div className="flex-1 min-w-0">
                             <p className={cn(
-                              "font-medium text-sm truncate",
+                              "truncate text-xs font-medium sm:text-sm",
                               task.status === "done" && "line-through text-muted-foreground"
                             )}>
                               {task.title}
                             </p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Badge variant="outline" className="text-[10px]">
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5 sm:gap-2">
+                              <Badge variant="outline" className="max-w-[140px] truncate text-[10px]">
                                 {getProjectName(projects, task.project_id)}
                               </Badge>
                               <Badge className={cn("text-[10px]", statusConfig[task.status].color)}>

@@ -1,7 +1,22 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Eye, Mail, Pencil, Plus, Search, Shield, Trash2, UserPlus, Users } from "lucide-react"
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Eye,
+  LayoutGrid,
+  List,
+  Mail,
+  Pencil,
+  Plus,
+  Search,
+  Shield,
+  Trash2,
+  UserPlus,
+  Users,
+} from "lucide-react"
 
 import MemberAvatar from "@/components/member-avatar"
 import { useUser } from "@/components/user-provider"
@@ -24,6 +39,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { cn } from "@/lib/utils"
 
 type Member = {
   id: string
@@ -52,6 +68,9 @@ type Task = {
 
 const ROLE_OPTIONS = ["admin", "member", "viewer", "developer", "designer", "pm", "accountant"]
 
+type TeamViewMode = "list" | "card"
+type TeamSortKey = "member" | "email" | "role" | "projects" | "tasks"
+
 export default function TeamPage() {
   const { profile, impersonation, clearImpersonation, loading: userLoading } = useUser()
   const currentRole = profile?.role || "viewer"
@@ -73,11 +92,19 @@ export default function TeamPage() {
   const [createLoginAccount, setCreateLoginAccount] = useState(true)
   const [saving, setSaving] = useState(false)
   const [draftRoles, setDraftRoles] = useState<Record<string, string>>({})
+  const [draftNames, setDraftNames] = useState<Record<string, string>>({})
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
   const [impersonatingMemberId, setImpersonatingMemberId] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [roleFilter, setRoleFilter] = useState("__all__")
   const [previewMember, setPreviewMember] = useState<Member | null>(null)
+  const [teamView, setTeamView] = useState<TeamViewMode>(() => {
+    if (typeof window === "undefined") return "list"
+    const saved = window.sessionStorage.getItem("projecthub-team-view-mode")
+    return saved === "card" || saved === "list" ? saved : "list"
+  })
+  const [sortKey, setSortKey] = useState<TeamSortKey>("member")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
 
   const dedupedMembers = useMemo(() => {
     return members.filter((member, index, all) => {
@@ -117,6 +144,21 @@ export default function TeamPage() {
     }
   }, [dedupedMembers])
 
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    window.sessionStorage.setItem("projecthub-team-view-mode", teamView)
+  }, [teamView])
+
+  useEffect(() => {
+    if (userLoading) return
+    if (profile) return
+
+    setTeamView("list")
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem("projecthub-team-view-mode")
+    }
+  }, [profile, userLoading])
+
   const getProjectCountForMember = (memberId: string) => {
     return projects.filter((project) =>
       (project.project_members || []).some((pm) => pm.members?.id === memberId),
@@ -131,6 +173,46 @@ export default function TeamPage() {
       done: memberTasks.filter((task) => task.status === "done").length,
     }
   }
+
+  const projectCountByMember = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const project of projects) {
+      const seen = new Set<string>()
+      for (const pm of project.project_members || []) {
+        const memberId = pm.members?.id
+        if (!memberId || seen.has(memberId)) continue
+        seen.add(memberId)
+        map.set(memberId, (map.get(memberId) || 0) + 1)
+      }
+    }
+    return map
+  }, [projects])
+
+  const taskCountByMember = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const task of tasks) {
+      if (!task.assignee_member_id) continue
+      map.set(task.assignee_member_id, (map.get(task.assignee_member_id) || 0) + 1)
+    }
+    return map
+  }, [tasks])
+
+  const sortedMembers = useMemo(() => {
+    const rows = [...filteredMembers]
+    const factor = sortDirection === "asc" ? 1 : -1
+
+    rows.sort((a, b) => {
+      if (sortKey === "member") return a.name.localeCompare(b.name) * factor
+      if (sortKey === "email") return (a.email || "").localeCompare(b.email || "") * factor
+      if (sortKey === "role") return a.role.localeCompare(b.role) * factor
+      if (sortKey === "projects") {
+        return ((projectCountByMember.get(a.id) || 0) - (projectCountByMember.get(b.id) || 0)) * factor
+      }
+      return ((taskCountByMember.get(a.id) || 0) - (taskCountByMember.get(b.id) || 0)) * factor
+    })
+
+    return rows
+  }, [filteredMembers, sortDirection, sortKey, projectCountByMember, taskCountByMember])
 
   const fetchMembers = async () => {
     setLoading(true)
@@ -179,6 +261,13 @@ export default function TeamPage() {
     setDraftRoles(
       members.reduce<Record<string, string>>((acc, member) => {
         acc[member.id] = member.role
+        return acc
+      }, {})
+    )
+
+    setDraftNames(
+      members.reduce<Record<string, string>>((acc, member) => {
+        acc[member.id] = member.name
         return acc
       }, {})
     )
@@ -232,13 +321,19 @@ export default function TeamPage() {
     }
   }
 
-  const updateMemberRole = async (member: Member, role: string) => {
+  const updateMemberQuickEdits = async (member: Member, name: string, role: string) => {
+    const trimmedName = name.trim()
+    if (!trimmedName) {
+      setError("Member name cannot be empty")
+      return
+    }
+
     const previous = members
-    setMembers((prev) => prev.map((item) => (item.id === member.id ? { ...item, role } : item)))
+    setMembers((prev) => prev.map((item) => (item.id === member.id ? { ...item, name: trimmedName, role } : item)))
     const response = await fetch(`/api/members/${member.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role }),
+      body: JSON.stringify({ name: trimmedName, role }),
     })
 
     if (!response.ok) {
@@ -303,6 +398,20 @@ export default function TeamPage() {
     } catch {
       setError("Failed to stop impersonation")
     }
+  }
+
+  const toggleSort = (key: TeamSortKey) => {
+    if (sortKey === key) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))
+      return
+    }
+    setSortKey(key)
+    setSortDirection("asc")
+  }
+
+  const getSortIcon = (key: TeamSortKey) => {
+    if (sortKey !== key) return <ArrowUpDown className="h-3.5 w-3.5 opacity-50" />
+    return sortDirection === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
   }
 
   return (
@@ -413,34 +522,109 @@ export default function TeamPage() {
         <div className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <Card className="glass">
-              <CardContent className="p-3">
-                <p className="text-xs text-muted-foreground">Total</p>
-                <p className="text-xl font-semibold">{roleStats.total}</p>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Total users</p>
+                    <p className="mt-1 text-2xl font-semibold leading-none">{roleStats.total}</p>
+                  </div>
+                  <div className="rounded-full bg-primary/10 p-2 text-primary">
+                    <Users className="h-4 w-4" />
+                  </div>
+                </div>
               </CardContent>
             </Card>
             <Card className="glass">
-              <CardContent className="p-3">
-                <p className="text-xs text-muted-foreground">Admins</p>
-                <p className="text-xl font-semibold">{roleStats.admin}</p>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Admins</p>
+                    <p className="mt-1 text-2xl font-semibold leading-none">{roleStats.admin}</p>
+                  </div>
+                  <div className="rounded-full bg-amber-500/10 p-2 text-amber-600 dark:text-amber-400">
+                    <Shield className="h-4 w-4" />
+                  </div>
+                </div>
               </CardContent>
             </Card>
             <Card className="glass">
-              <CardContent className="p-3">
-                <p className="text-xs text-muted-foreground">Members</p>
-                <p className="text-xl font-semibold">{roleStats.member}</p>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Members</p>
+                    <p className="mt-1 text-2xl font-semibold leading-none">{roleStats.member}</p>
+                  </div>
+                  <div className="rounded-full bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400">
+                    <Users className="h-4 w-4" />
+                  </div>
+                </div>
               </CardContent>
             </Card>
             <Card className="glass">
-              <CardContent className="p-3">
-                <p className="text-xs text-muted-foreground">Viewers</p>
-                <p className="text-xl font-semibold">{roleStats.viewer}</p>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Viewers</p>
+                    <p className="mt-1 text-2xl font-semibold leading-none">{roleStats.viewer}</p>
+                  </div>
+                  <div className="rounded-full bg-zinc-500/10 p-2 text-zinc-600 dark:text-zinc-400">
+                    <Eye className="h-4 w-4" />
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
 
+          {(() => {
+            const extraRoles = dedupedMembers.reduce<Record<string, number>>((acc, member) => {
+              if (["admin", "member", "viewer"].includes(member.role)) return acc
+              acc[member.role] = (acc[member.role] || 0) + 1
+              return acc
+            }, {})
+
+            const extraEntries = Object.entries(extraRoles)
+            if (extraEntries.length === 0) return null
+
+            return (
+              <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                <p className="mb-2 text-[11px] uppercase tracking-wide text-muted-foreground">Other roles</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {extraEntries.map(([role, count]) => (
+                    <Badge key={role} variant="outline" className="text-[11px] capitalize">
+                      {role}: {count}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+
           <Card className="glass">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Team Directory</CardTitle>
+            <CardHeader className="flex flex-col gap-2 border-b border-border/60 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="text-base">Team Directory</CardTitle>
+                <p className="text-xs text-muted-foreground">Browse team members quickly and sort by role, projects, or task load.</p>
+              </div>
+              <div className="flex items-center gap-1 rounded-md border p-0.5">
+                <Button
+                  variant={teamView === "list" ? "default" : "ghost"}
+                  size="sm"
+                  className={cn("h-8 gap-1.5 px-2.5 text-xs", teamView === "list" && "bg-primary text-primary-foreground hover:bg-primary/90")}
+                  onClick={() => setTeamView("list")}
+                >
+                  <List className="h-4 w-4" />
+                  <span>List</span>
+                </Button>
+                <Button
+                  variant={teamView === "card" ? "default" : "ghost"}
+                  size="sm"
+                  className={cn("h-8 gap-1.5 px-2.5 text-xs", teamView === "card" && "bg-primary text-primary-foreground hover:bg-primary/90")}
+                  onClick={() => setTeamView("card")}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                  <span>Card</span>
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -467,33 +651,25 @@ export default function TeamPage() {
                 </select>
               </div>
 
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="h-9">Member</TableHead>
-                    <TableHead className="h-9">Email</TableHead>
-                    <TableHead className="h-9">Role</TableHead>
-                    <TableHead className="h-9 text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredMembers.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
-                        No matching team members.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredMembers.map((member) => {
-                      const draftRole = draftRoles[member.id] || member.role
-                      const roleChanged = draftRole !== member.role
-                      const isRowEditing = editingMemberId === member.id
-                      const isImpersonatingThisMember = impersonation?.memberId === member.id
-
+              {sortedMembers.length === 0 ? (
+                <div className="rounded-lg border border-border/60 p-6 text-center text-sm text-muted-foreground">
+                  No matching team members.
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2 md:hidden">
+                    {sortedMembers.map((member) => {
+                      const projectCount = projectCountByMember.get(member.id) || 0
+                      const taskCount = taskCountByMember.get(member.id) || 0
                       return (
-                        <TableRow key={member.id}>
-                          <TableCell className="py-2">
-                            <div className="flex items-center gap-2">
+                        <button
+                          key={member.id}
+                          type="button"
+                          onClick={() => setPreviewMember(member)}
+                          className="w-full rounded-lg border border-border/70 bg-background/60 p-3 text-left transition-colors hover:bg-accent/30"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex min-w-0 items-center gap-2">
                               <MemberAvatar
                                 name={member.name}
                                 email={member.email}
@@ -504,114 +680,173 @@ export default function TeamPage() {
                               />
                               <div className="min-w-0">
                                 <p className="truncate text-sm font-medium">{member.name}</p>
-                                {member.role.toLowerCase() === "admin" && (
-                                  <Badge variant="secondary" className="mt-1 h-5 px-2 text-[10px]">
-                                    <Shield className="mr-1 h-3 w-3" /> Admin
-                                  </Badge>
-                                )}
+                                <p className="truncate text-xs text-muted-foreground">{member.email || "No email"}</p>
                               </div>
                             </div>
-                          </TableCell>
-                          <TableCell className="py-2 text-sm text-muted-foreground">
-                            <span className="inline-flex items-center gap-1">
-                              <Mail className="h-3 w-3" />
-                              {member.email || "No email"}
-                            </span>
-                          </TableCell>
-                          <TableCell className="py-2">
-                            {isRowEditing ? (
-                              <select
-                                value={draftRole}
-                                onChange={(event) =>
-                                  setDraftRoles((prev) => ({ ...prev, [member.id]: event.target.value }))
-                                }
-                                disabled={!canEdit}
-                                className="h-8 w-32 rounded-md border border-input bg-background px-2 text-xs disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                {Array.from(new Set([...ROLE_OPTIONS, member.role, draftRole]))
-                                  .filter(Boolean)
-                                  .map((role) => (
-                                    <option key={role} value={role}>
-                                      {role}
-                                    </option>
-                                  ))}
-                              </select>
-                            ) : (
-                              <Badge variant="outline" className="capitalize">
-                                {member.role}
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="py-2">
-                            <div className="flex items-center justify-end gap-2">
-                              {isAdmin && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 px-2 text-xs"
-                                  onClick={() => setPreviewMember(member)}
-                                >
-                                  <Eye className="mr-1 h-3.5 w-3.5" />
-                                  Preview
-                                </Button>
-                              )}
-
-                              {canEdit && (
-                                <Button
-                                  variant={isRowEditing ? "secondary" : "outline"}
-                                  size="sm"
-                                  className="h-8 px-2 text-xs"
-                                  onClick={() => setEditingMemberId((current) => (current === member.id ? null : member.id))}
-                                >
-                                  <Pencil className="mr-1 h-3.5 w-3.5" />
-                                  Edit
-                                </Button>
-                              )}
-
-                              {isAdmin && (
-                                <Button
-                                  variant={isImpersonatingThisMember ? "secondary" : "outline"}
-                                  size="sm"
-                                  className="h-8 px-2 text-xs"
-                                  disabled={impersonatingMemberId === member.id || !member.user_id}
-                                  onClick={() => startImpersonation(member)}
-                                  title={!member.user_id ? "No login account linked" : "Impersonate this user"}
-                                >
-                                  <Eye className="mr-1 h-3.5 w-3.5" />
-                                  {impersonatingMemberId === member.id ? "Starting..." : "Impersonate"}
-                                </Button>
-                              )}
-
-                              {isAdmin && isRowEditing && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => handleDeleteMember(member.id)}
-                                  title="Delete member"
-                                >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                              )}
-
-                              {canEdit && isRowEditing && roleChanged && (
-                                <Button
-                                  variant="default"
-                                  size="sm"
-                                  className="h-8 px-2 text-xs"
-                                  onClick={() => updateMemberRole(member, draftRole)}
-                                >
-                                  Save
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
+                            <Badge variant="outline" className="text-[11px] capitalize">{member.role}</Badge>
+                          </div>
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
+                            <Badge variant="secondary" className="text-[10px]">{projectCount} projects</Badge>
+                            <Badge variant="secondary" className="text-[10px]">{taskCount} tasks</Badge>
+                          </div>
+                        </button>
                       )
-                    })
+                    })}
+                  </div>
+
+                  {teamView === "card" ? (
+                    <div className="hidden gap-3 md:grid md:grid-cols-2 xl:grid-cols-3">
+                      {sortedMembers.map((member) => {
+                        const projectCount = projectCountByMember.get(member.id) || 0
+                        const taskCount = taskCountByMember.get(member.id) || 0
+                        return (
+                          <div key={member.id} className="rounded-lg border border-border/70 bg-background/60 p-3">
+                            <button type="button" className="flex w-full items-center gap-2 text-left" onClick={() => setPreviewMember(member)}>
+                              <MemberAvatar
+                                name={member.name}
+                                email={member.email}
+                                userId={member.user_id || null}
+                                avatarUrl={member.avatar_url || null}
+                                sizeClass="h-9 w-9"
+                                textClass="text-[11px]"
+                              />
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium">{member.name}</p>
+                                <p className="truncate text-xs text-muted-foreground">{member.email || "No email"}</p>
+                              </div>
+                            </button>
+                            <div className="mt-2 flex items-center justify-between">
+                              <Badge variant="outline" className="text-[11px] capitalize">{member.role}</Badge>
+                              <span className="text-xs text-muted-foreground">{projectCount} projects • {taskCount} tasks</span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <Table className="hidden md:table">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="h-9">
+                            <button type="button" className="inline-flex items-center gap-1 transition-colors hover:text-foreground" onClick={() => toggleSort("member")}>Member {getSortIcon("member")}</button>
+                          </TableHead>
+                          <TableHead className="h-9">
+                            <button type="button" className="inline-flex items-center gap-1 transition-colors hover:text-foreground" onClick={() => toggleSort("email")}>Email {getSortIcon("email")}</button>
+                          </TableHead>
+                          <TableHead className="h-9">
+                            <button type="button" className="inline-flex items-center gap-1 transition-colors hover:text-foreground" onClick={() => toggleSort("role")}>Role {getSortIcon("role")}</button>
+                          </TableHead>
+                          <TableHead className="h-9 text-right">
+                            <button type="button" className="ml-auto inline-flex items-center gap-1 transition-colors hover:text-foreground" onClick={() => toggleSort("projects")}>Projects {getSortIcon("projects")}</button>
+                          </TableHead>
+                          <TableHead className="h-9 text-right">
+                            <button type="button" className="ml-auto inline-flex items-center gap-1 transition-colors hover:text-foreground" onClick={() => toggleSort("tasks")}>Tasks {getSortIcon("tasks")}</button>
+                          </TableHead>
+                          <TableHead className="h-9 text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {sortedMembers.map((member) => {
+      const draftRole = draftRoles[member.id] || member.role
+      const draftName = draftNames[member.id] ?? member.name
+      const roleChanged = draftRole !== member.role
+      const nameChanged = draftName.trim() !== member.name
+      const isRowEditing = editingMemberId === member.id
+      const isImpersonatingThisMember = impersonation?.memberId === member.id
+                          const projectCount = projectCountByMember.get(member.id) || 0
+                          const taskCount = taskCountByMember.get(member.id) || 0
+
+                          return (
+                            <TableRow key={member.id}>
+                              <TableCell className="py-2">
+                                <div className="flex items-center gap-2">
+                                  <MemberAvatar name={member.name} email={member.email} userId={member.user_id || null} avatarUrl={member.avatar_url || null} sizeClass="h-8 w-8" textClass="text-[11px]" />
+                                  <div className="min-w-0">
+                                    {isRowEditing ? (
+                                      <input
+                                        value={draftName}
+                                        onChange={(event) =>
+                                          setDraftNames((prev) => ({ ...prev, [member.id]: event.target.value }))
+                                        }
+                                        className="h-8 w-44 max-w-full rounded-md border border-input bg-background px-2 text-xs"
+                                      />
+                                    ) : (
+                                      <p className="truncate text-sm font-medium">{member.name}</p>
+                                    )}
+                                    {member.role.toLowerCase() === "admin" && (
+                                      <Badge variant="secondary" className="mt-1 h-5 px-2 text-[10px]"><Shield className="mr-1 h-3 w-3" /> Admin</Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell className="py-2 text-sm text-muted-foreground">
+                                <span className="inline-flex items-center gap-1"><Mail className="h-3 w-3" />{member.email || "No email"}</span>
+                              </TableCell>
+                              <TableCell className="py-2">
+                                {isRowEditing ? (
+                                  <select
+                                    value={draftRole}
+                                    onChange={(event) => setDraftRoles((prev) => ({ ...prev, [member.id]: event.target.value }))}
+                                    disabled={!canEdit}
+                                    className="h-8 w-32 rounded-md border border-input bg-background px-2 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    {Array.from(new Set([...ROLE_OPTIONS, member.role, draftRole])).filter(Boolean).map((role) => (
+                                      <option key={role} value={role}>{role}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <Badge variant="outline" className="capitalize">{member.role}</Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="py-2 text-right text-sm">{projectCount}</TableCell>
+                              <TableCell className="py-2 text-right text-sm">{taskCount}</TableCell>
+                              <TableCell className="py-2">
+                                <div className="flex items-center justify-end gap-2">
+                                  {isAdmin && (
+                                    <Button variant="outline" size="sm" className="h-8 px-2 text-xs" onClick={() => setPreviewMember(member)}>
+                                      <Eye className="mr-1 h-3.5 w-3.5" />Preview
+                                    </Button>
+                                  )}
+                                  {canEdit && (
+                                    <Button
+                                      variant={isRowEditing ? "default" : "outline"}
+                                      size="sm"
+                                      className={cn("h-8 px-2 text-xs", isRowEditing && "bg-primary text-primary-foreground hover:bg-primary/90")}
+                                      onClick={() => setEditingMemberId((current) => (current === member.id ? null : member.id))}
+                                    >
+                                      <Pencil className="mr-1 h-3.5 w-3.5" />Edit
+                                    </Button>
+                                  )}
+                                  {isAdmin && (
+                                    <Button variant={isImpersonatingThisMember ? "secondary" : "outline"} size="sm" className="h-8 px-2 text-xs" disabled={impersonatingMemberId === member.id || !member.user_id} onClick={() => startImpersonation(member)} title={!member.user_id ? "No login account linked" : "Impersonate this user"}>
+                                      <Eye className="mr-1 h-3.5 w-3.5" />{impersonatingMemberId === member.id ? "Starting..." : "Impersonate"}
+                                    </Button>
+                                  )}
+                                  {isAdmin && isRowEditing && (
+                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteMember(member.id)} title="Delete member">
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  )}
+                                  {canEdit && isRowEditing && (roleChanged || nameChanged) && (
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      className="h-8 px-2 text-xs"
+                                      onClick={() => updateMemberQuickEdits(member, draftName, draftRole)}
+                                    >
+                                      Save
+                                    </Button>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
                   )}
-                </TableBody>
-              </Table>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
