@@ -26,6 +26,8 @@ const updateMemberSchema = z.object({
   name: z.string().min(1).max(120).optional(),
   email: z.string().email().max(200).nullable().optional(),
   role: z.string().min(1).max(80).optional(),
+  avatar_url: z.string().url().or(z.literal("initials")).nullable().optional(),
+  password: z.string().min(8).max(128).optional(),
 })
 
 export async function GET(
@@ -111,6 +113,16 @@ export async function PUT(
     return NextResponse.json({ error: "Invalid member payload" }, { status: 400 })
   }
 
+  const { data: existingMember } = await supabase
+    .from("members")
+    .select("id,user_id,email")
+    .eq("id", id)
+    .maybeSingle()
+
+  if (!existingMember) {
+    return NextResponse.json({ error: "Member not found" }, { status: 404 })
+  }
+
   const { data, error } = await supabase
     .from("members")
     .update({
@@ -126,6 +138,53 @@ export async function PUT(
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  if (existingMember.user_id) {
+    const adminClient = getAdminClient()
+    if (adminClient) {
+      const updates: { email?: string; password?: string; user_metadata?: Record<string, string> } = {}
+
+      if (parsed.data.email !== undefined && parsed.data.email?.trim()) {
+        updates.email = parsed.data.email.trim().toLowerCase()
+      }
+      if (parsed.data.password) {
+        updates.password = parsed.data.password
+      }
+      if (parsed.data.name !== undefined || parsed.data.avatar_url !== undefined) {
+        updates.user_metadata = {
+          ...(parsed.data.name !== undefined ? { full_name: parsed.data.name.trim() } : {}),
+          ...(parsed.data.avatar_url !== undefined ? { avatar_url: parsed.data.avatar_url || "" } : {}),
+        }
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await adminClient.auth.admin.updateUserById(existingMember.user_id, {
+          ...updates,
+          ...(updates.email ? { email_confirm: true } : {}),
+        })
+      }
+
+      if (
+        parsed.data.name !== undefined ||
+        parsed.data.email !== undefined ||
+        parsed.data.role !== undefined ||
+        parsed.data.avatar_url !== undefined
+      ) {
+        await adminClient
+          .from("profiles")
+          .upsert(
+            {
+              id: existingMember.user_id,
+              ...(parsed.data.name !== undefined ? { full_name: parsed.data.name.trim() } : {}),
+              ...(parsed.data.email !== undefined ? { email: parsed.data.email?.trim().toLowerCase() || null } : {}),
+              ...(parsed.data.role !== undefined ? { role: parsed.data.role.trim() } : {}),
+              ...(parsed.data.avatar_url !== undefined ? { avatar_url: parsed.data.avatar_url || null } : {}),
+            },
+            { onConflict: "id" },
+          )
+      }
+    }
   }
 
   revalidateTag("members", "max")

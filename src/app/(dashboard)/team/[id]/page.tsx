@@ -6,6 +6,7 @@ import { getRoleContext } from "@/lib/server-authz"
 
 type Member = {
   id: string
+  created_at?: string | null
   user_id?: string | null
   avatar_url?: string | null
   name: string
@@ -41,7 +42,7 @@ export default async function TeamMemberProfilePage({
 
   const { data: rawMember, error: memberError } = await supabase
     .from("members")
-    .select("id, name, email, role, user_id, profiles:profiles!members_user_id_fkey(avatar_url)")
+    .select("id, created_at, name, email, role, user_id, profiles:profiles!members_user_id_fkey(avatar_url)")
     .eq("id", id)
     .maybeSingle<Member>()
 
@@ -91,6 +92,7 @@ export default async function TeamMemberProfilePage({
 
   const member = {
     id: rawMember.id,
+    created_at: rawMember.created_at || null,
     name: rawMember.name,
     email: rawMember.email,
     role: rawMember.role,
@@ -114,8 +116,9 @@ export default async function TeamMemberProfilePage({
 
   let authEvents: Array<{
     id: string
-    event_type: "login_success" | "logout" | "session_check"
+    event_type: string
     created_at: string
+    email: string | null
     country: string | null
     city: string | null
     user_agent: string | null
@@ -146,6 +149,7 @@ export default async function TeamMemberProfilePage({
         id: event.id,
         event_type: event.event_type,
         created_at: event.created_at,
+        email: event.email,
         country: event.country,
         city: event.city,
         user_agent: event.user_agent,
