@@ -15,7 +15,7 @@ ProjectHub keeps project work clear and practical: who owns what, what’s due, 
 
 ## What you can do
 
-- Sign in/out with Supabase auth
+- Sign in/out with Supabase auth (email + OAuth)
 - Access protected dashboard routes via `src/proxy.ts`
 - Create, update, filter, and search projects
 - Manage team members with role-aware permissions
@@ -23,7 +23,8 @@ ProjectHub keeps project work clear and practical: who owns what, what’s due, 
   - project details page
   - dedicated `/tasks` workspace (kanban, list, calendar)
 - Star projects and persist preferences
-- Customize profile/theme/avatar in Settings
+- Customize profile/theme/avatar in Settings (Account + Appearance tabs)
+- Change password in Settings
 - Use admin impersonation for support/admin workflows
 
 ## Main routes
@@ -48,6 +49,7 @@ ProjectHub keeps project work clear and practical: who owns what, what’s due, 
 - `/api/clients`
 - `/api/clients/[id]`
 - `/api/profile`
+- `/api/profile/password`
 - `/api/auth/me`
 - `/api/auth/activity`
 - `/api/admin/users`
@@ -73,7 +75,13 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 - Run `supabase-schema.sql` in Supabase SQL Editor
 - If needed for older data, run `sql/migrate_project_statuses.sql`
 
-4. (Optional) load sample data:
+4. Enable OAuth (optional):
+
+- Go to **Authentication → Providers** in Supabase
+- Enable Google and/or GitHub
+- Enter OAuth credentials from Google Cloud Console / GitHub Developer Settings
+
+5. (Optional) load sample data:
 
 ```bash
 # seed sample records
@@ -83,13 +91,13 @@ sql/seed_dummy_data.sql
 sql/reset_dummy_data.sql
 ```
 
-5. Run locally:
+6. Run locally:
 
 ```bash
 npm run dev
 ```
 
-6. Production check:
+7. Production check:
 
 ```bash
 npm run lint
@@ -123,12 +131,15 @@ Core project management capabilities:
 Expanded capabilities:
 
 - Auth + protected routes + role-based behavior
+- OAuth login (Google, GitHub)
 - Tasks management with dedicated workspace (`/tasks`) and kanban/list/calendar views
 - Task CRUD + status/priority/due date handling + drag/drop reorder persistence
 - Clients management (`/clients`) with dedicated CRUD endpoints
 - Team management with member detail pages (`/team/[id]`) and profile editing
 - Dashboard personalization (widget layout, visibility, quick actions)
 - Rich project preview workflows (timeline view, quick edit, task deep-linking)
-- Profile/theme/avatar customization
+- Profile/theme/avatar customization in Settings (Account + Appearance tabs)
+- Password change in Settings
 - Admin impersonation support workflows
 - Login activity history (admin-visible) with coarse location context
+- Reports page with analytics charts
