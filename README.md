@@ -125,6 +125,7 @@ Core project management capabilities:
 - Responsive frontend with projects table, status filtering, and search
 - Modal-based add/edit project flow
 - Backend API routes with REST-style CRUD
+- Zod validation on all API inputs (budget >= 0, required fields)
 - PostgreSQL persistence (Supabase)
 - Seed data support (`sql/seed_dummy_data.sql`)
 
