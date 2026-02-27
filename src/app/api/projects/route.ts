@@ -3,6 +3,7 @@ import { revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import { getRoleContext } from "@/lib/server-authz";
+import { logProjectActivity } from "@/lib/project-activity";
 
 const projectStatusSchema = z.enum([
   "active",
@@ -266,6 +267,43 @@ export async function POST(request: NextRequest) {
         );
       }
       return NextResponse.json({ error: insError.message }, { status: 500 });
+    }
+  }
+
+  void logProjectActivity(supabase, {
+    projectId: project.id,
+    actorUserId: user.id,
+    eventType: "project_created",
+    entityType: "project",
+    entityId: project.id,
+    message: `Created project ${project.name}`,
+    metadata: {
+      status: project.status,
+      start_date: project.start_date,
+      deadline: project.deadline,
+    },
+  })
+
+  if (Array.isArray(member_ids) && member_ids.length > 0) {
+    const { data: selectedMembers } = await supabase
+      .from("members")
+      .select("id,name,email")
+      .in("id", member_ids)
+
+    for (const member of selectedMembers || []) {
+      void logProjectActivity(supabase, {
+        projectId: project.id,
+        actorUserId: user.id,
+        eventType: "member_added",
+        entityType: "member",
+        entityId: member.id,
+        message: `Added ${member.name || member.email || "member"} to project`,
+        metadata: {
+          member_id: member.id,
+          member_name: member.name,
+          member_email: member.email,
+        },
+      })
     }
   }
 

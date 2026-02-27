@@ -195,6 +195,12 @@ body {
   overflow-x: hidden;
 }
 
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+[role="tab"] {
+  cursor: pointer;
+}
+
 /* Glassmorphism utilities - Obsidian style */
 .glass {
   background: hsl(var(--card));
@@ -449,6 +455,12 @@ body {
 *:focus-visible {
   outline: 2px solid hsl(var(--accent));
   outline-offset: 2px;
+}
+
+/* Opt-out utility for components that provide their own focus treatment */
+.no-global-focus-ring:focus-visible {
+  outline: none !important;
+  outline-offset: 0 !important;
 }
 
 /* Selection color */

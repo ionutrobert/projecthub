@@ -1,20 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { type DateRange } from "react-day-picker";
 
 import { useUser } from "@/components/user-provider";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DateRangePicker } from "@/components/ui/date-range-picker";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import ProjectPreviewModal from "@/components/project-preview-modal";
 import MemberAvatar from "@/components/member-avatar";
+import { getNameInitials } from "@/lib/avatar";
+import { renderMarkdownHtml } from "@/lib/markdown";
 import { cn } from "@/lib/utils";
 import {
   FolderKanban,
@@ -31,7 +35,14 @@ import {
   Settings,
   Users,
   Star,
+  Eye,
+  List,
+  LayoutGrid,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
   Check,
+  ChevronsUpDown,
   SlidersHorizontal,
 } from "lucide-react";
 
@@ -79,13 +90,22 @@ interface Member {
   role: string;
 }
 
-interface ProjectTaskPreview {
-  id: string;
-  title: string;
-  status: "todo" | "in-progress" | "done";
-  priority: "low" | "medium" | "high" | "urgent";
-  due_date: string | null;
-}
+type TableSortKey = "project" | "status" | "deadline" | "budget";
+type TableSortDirection = "asc" | "desc";
+
+const SORT_MODE_LABEL: Record<"priority" | "due_date" | "name" | "custom", string> = {
+  priority: "Priority",
+  due_date: "Due Date",
+  name: "Name",
+  custom: "Custom Order",
+};
+
+const TABLE_SORT_LABEL: Record<TableSortKey, string> = {
+  project: "Project",
+  status: "Status",
+  deadline: "Deadline",
+  budget: "Budget",
+};
 
 const PROJECT_STATUSES: Project["status"][] = [
   "active",
@@ -95,18 +115,63 @@ const PROJECT_STATUSES: Project["status"][] = [
   "closed",
 ];
 
-const PROJECT_STATUS_BADGE_CLASS: Record<Project["status"], string> = {
-  active: "bg-emerald-500/15 text-emerald-200 border-emerald-500/40",
-  "in-progress": "bg-blue-500/15 text-blue-200 border-blue-500/40",
-  "on-hold": "bg-amber-500/15 text-amber-200 border-amber-500/40",
-  completed: "bg-violet-500/15 text-violet-200 border-violet-500/40",
-  closed: "bg-zinc-500/15 text-zinc-200 border-zinc-500/40",
-};
-
 const getClientDisplayName = (clientName?: string | null) => {
   const normalized = clientName?.trim();
   return normalized ? normalized : "Internal project";
 };
+
+function getDeadlineCopy(deadline: string | null) {
+  if (!deadline) {
+    return { label: "No deadline", tone: "muted" as const };
+  }
+
+  const parsed = new Date(deadline);
+  if (Number.isNaN(parsed.getTime())) {
+    return { label: deadline, tone: "muted" as const };
+  }
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dueDate = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  const diffDays = Math.floor((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) {
+    return { label: "Deadline today", tone: "warn" as const };
+  }
+
+  if (diffDays < 0) {
+    const daysOver = Math.abs(diffDays);
+    return {
+      label: `Overdue by ${daysOver} day${daysOver === 1 ? "" : "s"}`,
+      tone: "overdue" as const,
+    };
+  }
+
+  return {
+    label: `Due in ${diffDays} day${diffDays === 1 ? "" : "s"}`,
+    tone: "upcoming" as const,
+  };
+}
+
+function getDeadlineToneClass(tone: "muted" | "warn" | "overdue" | "upcoming") {
+  if (tone === "overdue") return "border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-300";
+  if (tone === "warn") return "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300";
+  if (tone === "upcoming") return "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300";
+  return "border-border/60 bg-muted/40 text-muted-foreground";
+}
+
+function getProjectCompletionEstimate(status: Project["status"], taskCount?: number) {
+  if (!taskCount || taskCount <= 0) {
+    if (status === "completed" || status === "closed") return 100;
+    if (status === "in-progress") return 45;
+    return 15;
+  }
+
+  if (status === "completed" || status === "closed") return 100;
+  if (status === "in-progress") return 60;
+  if (status === "on-hold") return 35;
+  return 25;
+}
 
 function ProjectsSkeleton() {
   return (
@@ -161,7 +226,6 @@ export default function ProjectsPage() {
   const [selectedMemberIds, setSelectedMemberIds] =
     useState<string[]>(initialMembers);
   const [memberFilterOpen, setMemberFilterOpen] = useState(false);
-  const memberFilterRef = useRef<HTMLDivElement | null>(null);
   const [starredIds, setStarredIds] = useState<string[]>([]);
   const [customOrder] = useState<string[]>(() => {
     if (typeof window === "undefined") return [];
@@ -179,6 +243,8 @@ export default function ProjectsPage() {
   const [highlightProjectId, setHighlightProjectId] = useState<string | null>(null);
   const [spotlightProjectId, setSpotlightProjectId] = useState(initialSpotlightProjectId);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [tableSort, setTableSort] = useState<{ key: TableSortKey; direction: TableSortDirection } | null>(null);
+  const [desktopView, setDesktopView] = useState<"list" | "card">("list");
 
   const canEdit = profile?.role === "admin" || profile?.role === "member";
 
@@ -200,20 +266,6 @@ export default function ProjectsPage() {
     return () => clearTimeout(t);
   }, [search]);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        memberFilterRef.current &&
-        !memberFilterRef.current.contains(event.target as Node)
-      ) {
-        setMemberFilterOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   // Sync URL with filters for shareability
   useEffect(() => {
     const params = new URLSearchParams();
@@ -234,6 +286,19 @@ export default function ProjectsPage() {
       JSON.stringify(customOrder),
     );
   }, [customOrder]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem("projecthub-projects-desktop-view");
+    if (saved === "list" || saved === "card") {
+      setDesktopView(saved);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("projecthub-projects-desktop-view", desktopView);
+  }, [desktopView]);
 
   useEffect(() => {
     if (!loading) return;
@@ -387,6 +452,20 @@ export default function ProjectsPage() {
     return names;
   };
 
+  const getProjectAssignees = (project: Project) => {
+    const uniqueById = new Map<string, Member>();
+
+    for (const relation of project.project_members || []) {
+      const member = relation.members;
+      if (!member?.id) continue;
+      if (!uniqueById.has(member.id)) {
+        uniqueById.set(member.id, member);
+      }
+    }
+
+    return [...uniqueById.values()];
+  };
+
   const sortedProjects = useMemo(() => {
     const list = [...projects];
 
@@ -460,6 +539,65 @@ export default function ProjectsPage() {
     return list;
   }, [projects, sortMode, starredIds, customOrder, user]);
 
+  const desktopSortedProjects = useMemo(() => {
+    if (!tableSort) return sortedProjects;
+
+    const toDeadlineTimestamp = (value: string | null | undefined) => {
+      if (!value) return Number.POSITIVE_INFINITY;
+      const timestamp = new Date(value).getTime();
+      return Number.isNaN(timestamp) ? Number.POSITIVE_INFINITY : timestamp;
+    };
+
+    const sorted = [...sortedProjects].sort((a, b) => {
+      let result = 0;
+
+      if (tableSort.key === "project") {
+        result = a.name.localeCompare(b.name);
+      } else if (tableSort.key === "status") {
+        result = a.status.localeCompare(b.status);
+      } else if (tableSort.key === "deadline") {
+        result = toDeadlineTimestamp(a.deadline) - toDeadlineTimestamp(b.deadline);
+      } else if (tableSort.key === "budget") {
+        const aBudget = typeof a.budget === "number" ? a.budget : Number.POSITIVE_INFINITY;
+        const bBudget = typeof b.budget === "number" ? b.budget : Number.POSITIVE_INFINITY;
+        result = aBudget - bBudget;
+      }
+
+      return tableSort.direction === "asc" ? result : -result;
+    });
+
+    return sorted;
+  }, [sortedProjects, tableSort]);
+
+  const toggleTableSort = (key: TableSortKey) => {
+    setTableSort((current) => {
+      if (!current || current.key !== key) {
+        return { key, direction: "asc" };
+      }
+
+      if (current.direction === "desc") {
+        return null;
+      }
+
+      return {
+        key,
+        direction: "desc",
+      };
+    });
+  };
+
+  const getSortIcon = (key: TableSortKey) => {
+    if (!tableSort || tableSort.key !== key) {
+      return <ArrowUpDown className="h-3.5 w-3.5 opacity-60" />;
+    }
+
+    if (tableSort.direction === "asc") {
+      return <ArrowUp className="h-3.5 w-3.5" />;
+    }
+
+    return <ArrowDown className="h-3.5 w-3.5" />;
+  };
+
   const spotlightProject = useMemo(() => {
     if (!spotlightProjectId) return null;
     return projects.find((project) => project.id === spotlightProjectId) || null;
@@ -473,7 +611,12 @@ export default function ProjectsPage() {
   }, [spotlightProject]);
 
   const hasActiveFilters =
-    filter !== "all" || debouncedSearch.trim().length > 0 || selectedMemberIds.length > 0;
+    filter !== "all" ||
+    debouncedSearch.trim().length > 0 ||
+    selectedMemberIds.length > 0 ||
+    sortMode !== "priority";
+  const hasTableSort = Boolean(tableSort);
+  const hasActiveControls = hasActiveFilters || hasTableSort;
 
   if (userLoading) {
     return (
@@ -485,7 +628,7 @@ export default function ProjectsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex items-start justify-between gap-3 sm:items-center sm:gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Projects</h1>
           <p className="text-muted-foreground text-sm sm:text-base">
@@ -497,7 +640,7 @@ export default function ProjectsPage() {
             onClick={() => {
               router.push("/projects/new");
             }}
-            className="gap-2 w-fit"
+            className="gap-2 shrink-0"
           >
             <Plus className="h-4 w-4" /> Add Project
           </Button>
@@ -533,76 +676,110 @@ export default function ProjectsPage() {
           onChange={(e) => setFilter(e.target.value)}
           className="h-10 px-3 rounded-lg border border-input bg-background text-sm"
         >
-          <option value="all">All Status</option>
+          <option value="all">All Statuses</option>
           <option value="active">Active</option>
           <option value="in-progress">In Progress</option>
           <option value="on-hold">On Hold</option>
           <option value="completed">Completed</option>
           <option value="closed">Closed</option>
         </select>
-        <div className="relative min-w-56" ref={memberFilterRef}>
-          <button
-            type="button"
-            onClick={() => setMemberFilterOpen((open) => !open)}
-            className="h-10 w-full rounded-lg border border-input bg-background px-3 text-left text-sm"
-          >
-            {selectedMemberIds.length === 0
-              ? "Filter by assignees"
-              : `${selectedMemberIds.length} assignee${selectedMemberIds.length > 1 ? "s" : ""} selected`}
-          </button>
+        <Popover open={memberFilterOpen} onOpenChange={setMemberFilterOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              role="combobox"
+              aria-expanded={memberFilterOpen}
+              className="h-10 w-full justify-between rounded-lg px-3 text-sm font-normal lg:min-w-56 lg:w-auto"
+            >
+              <span className="truncate">
+                {selectedMemberIds.length === 0
+                  ? "Filter by assignees"
+                  : `${selectedMemberIds.length} assignee${selectedMemberIds.length > 1 ? "s" : ""} selected`}
+              </span>
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
 
-          {memberFilterOpen && (
-            <div className="absolute z-20 mt-2 max-h-72 w-full overflow-auto rounded-lg border border-border bg-card p-2 shadow-xl">
-              {dedupedMembers.length === 0 ? (
-                <p className="px-2 py-1 text-xs text-muted-foreground">No team members available</p>
-              ) : (
-                dedupedMembers.map((member) => {
-                  const checked = selectedMemberIds.includes(member.id);
-                  return (
-                    <button
-                      key={member.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedMemberIds((prev) =>
-                          prev.includes(member.id)
-                            ? prev.filter((id) => id !== member.id)
-                            : [...prev, member.id],
-                        );
-                      }}
-                      className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-sm hover:bg-accent/60"
+          <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+            <Command>
+              <CommandInput
+                placeholder="Search assignees..."
+                className="no-global-focus-ring h-10 border-0 outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+              />
+              <CommandList className="max-h-[240px]">
+                <CommandEmpty>No assignee found.</CommandEmpty>
+                <CommandGroup>
+                  {dedupedMembers.map((member) => {
+                    const checked = selectedMemberIds.includes(member.id);
+                    return (
+                      <CommandItem
+                        key={member.id}
+                        value={`${member.name} ${member.email || ""} ${member.id}`}
+                        onSelect={() => {
+                          setSelectedMemberIds((prev) =>
+                            prev.includes(member.id)
+                              ? prev.filter((id) => id !== member.id)
+                              : [...prev, member.id],
+                          );
+                        }}
+                      >
+                        <Check className={cn("mr-2 h-4 w-4", checked ? "opacity-100" : "opacity-0")} />
+                        <span className="truncate">{member.name}</span>
+                      </CommandItem>
+                    );
+                  })}
+                  {selectedMemberIds.length > 0 && (
+                    <CommandItem
+                      value="__clear_assignees__"
+                      onSelect={() => setSelectedMemberIds([])}
+                      className="text-muted-foreground"
                     >
-                      <span className="truncate">{member.name}</span>
-                      {checked && <Check className="h-4 w-4 text-primary" />}
-                    </button>
-                  );
-                })
-              )}
-              <div className="mt-2 border-t border-border pt-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedMemberIds([])}
-                  className="w-full rounded-md px-2 py-1 text-left text-xs text-muted-foreground hover:bg-accent/60"
-                >
-                  Clear selection
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+                      Clear selection
+                    </CommandItem>
+                  )}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
         <select
           value={sortMode}
           onChange={(e) => setSortMode(e.target.value as typeof sortMode)}
           className="h-10 px-3 rounded-lg border border-input bg-background text-sm"
         >
-          <option value="priority">Priority (Starred, Mine, Due Date)</option>
-          <option value="due_date">Due Date</option>
-          <option value="name">Name</option>
-          <option value="custom">Custom Order</option>
+          <option value="priority">Sort: Priority (Starred, Mine, Due Date)</option>
+          <option value="due_date">Sort: Due Date</option>
+          <option value="name">Sort: Name</option>
+          <option value="custom">Sort: Custom Order</option>
         </select>
       </div>
 
-      {hasActiveFilters && (
-        <div className="flex flex-wrap items-center gap-2">
+      {hasActiveControls && (
+        <div className="rounded-lg border border-border/60 bg-muted/20 p-2.5 sm:p-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-muted-foreground">Active filters & sorting</p>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs"
+              onClick={() => {
+                setFilter("all");
+                setSearch("");
+                setDebouncedSearch("");
+                setSpotlightProjectId("");
+                setSelectedMemberIds([]);
+                setSortMode("priority");
+                setTableSort(null);
+                setMobileFiltersOpen(false);
+              }}
+            >
+              Reset all
+            </Button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
           {filter !== "all" && (
             <button
               type="button"
@@ -610,6 +787,28 @@ export default function ProjectsPage() {
               className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-xs"
             >
               Status: {filter}
+              <X className="h-3 w-3" />
+            </button>
+          )}
+
+          {sortMode !== "priority" && (
+            <button
+              type="button"
+              onClick={() => setSortMode("priority")}
+              className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-xs"
+            >
+              Sort Mode: {SORT_MODE_LABEL[sortMode]}
+              <X className="h-3 w-3" />
+            </button>
+          )}
+
+          {tableSort && (
+            <button
+              type="button"
+              onClick={() => setTableSort(null)}
+              className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-xs"
+            >
+              Table Sort: {TABLE_SORT_LABEL[tableSort.key]} ({tableSort.direction === "asc" ? "A-Z" : "Z-A"})
               <X className="h-3 w-3" />
             </button>
           )}
@@ -646,20 +845,7 @@ export default function ProjectsPage() {
             );
           })}
 
-              <button
-                type="button"
-                onClick={() => {
-                  setFilter("all");
-                  setSearch("");
-                  setDebouncedSearch("");
-                  setSpotlightProjectId("");
-                  setSelectedMemberIds([]);
-                  setMobileFiltersOpen(false);
-                }}
-                className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground"
-              >
-                Clear all
-              </button>
+          </div>
         </div>
       )}
 
@@ -753,9 +939,15 @@ export default function ProjectsPage() {
 
                 <div className="rounded-lg border border-border/70 bg-background/50 p-3 md:col-span-2 xl:col-span-4">
                   <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Description</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {spotlightProject.description || "No description available."}
-                  </p>
+                  <div
+                    className="prose prose-sm mt-1 max-h-52 max-w-none overflow-hidden text-sm text-muted-foreground"
+                    title={spotlightProject.description || "No description available."}
+                    dangerouslySetInnerHTML={{
+                      __html: spotlightProject.description
+                        ? renderMarkdownHtml(spotlightProject.description)
+                        : "<p class=\"text-muted-foreground\">No description available.</p>",
+                    }}
+                  />
                 </div>
               </div>
             ) : (
@@ -780,13 +972,44 @@ export default function ProjectsPage() {
       ) : (
         <Card className="glass">
           <CardContent className="p-0">
+            <div className="hidden items-center justify-end border-b border-border/60 px-3 py-2 md:flex">
+              <div className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-background/70 p-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={desktopView === "list" ? "default" : "ghost"}
+                  className={cn("h-8 gap-1.5 px-2.5 text-xs", desktopView === "list" && "bg-primary text-primary-foreground hover:bg-primary/90")}
+                  onClick={() => setDesktopView("list")}
+                >
+                  <List className="h-3.5 w-3.5" />
+                  List
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={desktopView === "card" ? "default" : "ghost"}
+                  className={cn("h-8 gap-1.5 px-2.5 text-xs", desktopView === "card" && "bg-primary text-primary-foreground hover:bg-primary/90")}
+                  onClick={() => setDesktopView("card")}
+                >
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                  Card
+                </Button>
+              </div>
+            </div>
+
             <div className="divide-y divide-border md:hidden">
               {sortedProjects.map((project, index) => {
-                const assignees = getProjectAssigneeNames(project);
+                const assigneeMembers = getProjectAssignees(project);
+                const assigneeNames = getProjectAssigneeNames(project).join(", ");
+                const assigneeInitials = assigneeMembers
+                  .slice(0, 3)
+                  .map((member) => getNameInitials(member.name, member.email))
+                  .join(", ");
+                const deadline = getDeadlineCopy(project.deadline);
                 return (
                   <div
                     key={project.id}
-                    className={`flex flex-col gap-3 p-4 hover:bg-accent/20 transition-all duration-300 card-hover animate-slide-up cursor-pointer ${highlightProjectId === project.id ? "ring-1 ring-amber-400/50 bg-amber-400/5" : ""}`}
+                    className={`flex flex-col gap-2.5 p-3 hover:bg-accent/20 transition-all duration-300 card-hover animate-slide-up cursor-pointer sm:p-4 ${highlightProjectId === project.id ? "ring-1 ring-amber-400/50 bg-amber-400/5" : ""}`}
                     style={{ animationDelay: `${index * 50}ms` }}
                     role="button"
                     tabIndex={0}
@@ -800,10 +1023,11 @@ export default function ProjectsPage() {
                       }
                     }}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
                       <button
                         type="button"
-                        className="h-8 w-8 flex items-center justify-center rounded-full border border-border bg-background/60 text-muted-foreground shrink-0 btn-glow"
+                        className="h-6 w-6 flex items-center justify-center rounded-full border border-border bg-background/60 text-muted-foreground shrink-0 btn-glow sm:h-8 sm:w-8"
                         onClick={(e) => {
                           e.stopPropagation();
                           toggleStar(project.id);
@@ -811,13 +1035,13 @@ export default function ProjectsPage() {
                         title={starredIds.includes(project.id) ? "Unstar project" : "Star project"}
                       >
                         {starredIds.includes(project.id) ? (
-                          <Star className="h-4 w-4 text-amber-400" />
+                          <Star className="h-3 w-3 text-amber-400 sm:h-4 sm:w-4" />
                         ) : (
-                          <Star className="h-4 w-4 text-muted-foreground" />
+                          <Star className="h-3 w-3 text-muted-foreground sm:h-4 sm:w-4" />
                         )}
                       </button>
                       <div
-                        className="h-10 w-10 rounded-lg flex items-center justify-center shrink-0"
+                        className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 sm:h-10 sm:w-10"
                         style={{
                           backgroundColor: `${project.color || "#8B5CF6"}20`,
                         }}
@@ -825,70 +1049,112 @@ export default function ProjectsPage() {
                       >
                         {(() => {
                           const Icon = ICON_MAP[project.icon || "FolderKanban"] || FolderKanban;
-                          return <Icon className="h-5 w-5" style={{ color: project.color || "#8B5CF6" }} />;
+                          return <Icon className="h-4 w-4 sm:h-5 sm:w-5" style={{ color: project.color || "#8B5CF6" }} />;
                         })()}
                       </div>
                       <div className="min-w-0">
-                        <p className="font-medium truncate">{project.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          Assignee: {assignees.length > 0 ? assignees.join(", ") : "-"}
-                        </p>
+                        <p className="truncate text-sm font-medium sm:text-base">{project.name}</p>
+                        {assigneeMembers.length > 0 ? (
+                          <div className="mt-1 flex items-center gap-1.5">
+                            <div className="flex -space-x-2">
+                              {assigneeMembers.slice(0, 4).map((member) => (
+                                <div key={member.id} className="rounded-full border border-background" title={member.name}>
+                                  <MemberAvatar
+                                    name={member.name}
+                                    email={member.email}
+                                    userId={member.user_id}
+                                    sizeClass="h-4 w-4 sm:h-5 sm:w-5"
+                                    textClass="text-[9px]"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                            {assigneeMembers.length > 4 && (
+                              <span className="text-[10px] text-muted-foreground">+{assigneeMembers.length - 4}</span>
+                            )}
+                            <span className="max-w-[22ch] truncate text-[10px] text-muted-foreground md:hidden">
+                              {assigneeInitials}
+                            </span>
+                            <span className="hidden max-w-[34ch] truncate text-xs text-muted-foreground md:inline">
+                              {assigneeNames}
+                            </span>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground truncate">No assignees</p>
+                        )}
+                      </div>
+                      </div>
+
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium", getDeadlineToneClass(deadline.tone))}>
+                          {deadline.label}
+                        </span>
+                        <button
+                          type="button"
+                          className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${getStatusStyles(project.status)}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStatusChange(project);
+                          }}
+                        >
+                          {project.status}
+                        </button>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                      <span>Deadline: {project.deadline || "-"}</span>
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
+                      <span className="truncate">{getClientDisplayName(project.client_name)}</span>
                       <span className="text-right">Budget: {project.budget ? `$${project.budget.toLocaleString()}` : "-"}</span>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-medium capitalize ${getStatusStyles(project.status)}`}
-                        role="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleStatusChange(project);
-                        }}
-                      >
-                        {project.status}
-                      </span>
-                      <span className="text-xs text-muted-foreground">Click for preview</span>
                     </div>
                   </div>
                 );
               })}
             </div>
 
-            <div className="hidden md:block overflow-x-auto">
+            <div className="hidden md:block">
+              {desktopView === "list" ? (
+                <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/30 text-muted-foreground">
-                    <th className="px-4 py-3 text-left font-medium">Project</th>
-                    <th className="px-4 py-3 text-left font-medium">Status</th>
-                    <th className="px-4 py-3 text-left font-medium">Deadline</th>
-                    <th className="px-4 py-3 text-left font-medium">Assigned Team Member</th>
-                    <th className="px-4 py-3 text-right font-medium">Budget</th>
+                    <th className="px-4 py-3 text-left font-medium">
+                      <button type="button" className="inline-flex items-center gap-1 transition-colors hover:text-foreground" onClick={() => toggleTableSort("project")}>
+                        Project
+                        {getSortIcon("project")}
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium">
+                      <button type="button" className="inline-flex items-center gap-1 transition-colors hover:text-foreground" onClick={() => toggleTableSort("status")}>
+                        Status
+                        {getSortIcon("status")}
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium">
+                      <button type="button" className="inline-flex items-center gap-1 transition-colors hover:text-foreground" onClick={() => toggleTableSort("deadline")}>
+                        Deadline
+                        {getSortIcon("deadline")}
+                      </button>
+                    </th>
+                    <th className="hidden px-4 py-3 text-left font-medium xl:table-cell">Assigned Team Member</th>
+                    <th className="hidden px-4 py-3 text-right font-medium xl:table-cell">
+                      <button type="button" className="ml-auto inline-flex items-center gap-1 transition-colors hover:text-foreground" onClick={() => toggleTableSort("budget")}>
+                        Budget
+                        {getSortIcon("budget")}
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-right font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedProjects.map((project, index) => {
+                  {desktopSortedProjects.map((project, index) => {
                     const assignees = getProjectAssigneeNames(project);
+                    const assigneeMembers = getProjectAssignees(project);
+                    const deadlineInfo = getDeadlineCopy(project.deadline);
                     return (
                       <tr
                         key={project.id}
-                        className={`border-b border-border/70 cursor-pointer hover:bg-accent/20 transition-all duration-300 animate-slide-up ${highlightProjectId === project.id ? "bg-amber-400/5" : ""}`}
+                        className={`border-b border-border/70 hover:bg-accent/20 transition-all duration-300 animate-slide-up ${highlightProjectId === project.id ? "bg-amber-400/5" : ""}`}
                         style={{ animationDelay: `${index * 50}ms` }}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => {
-                          setPreviewProject(project);
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            setPreviewProject(project);
-                          }
-                        }}
                       >
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3 min-w-0">
@@ -917,7 +1183,14 @@ export default function ProjectsPage() {
                               })()}
                             </div>
                             <div className="min-w-0">
-                              <p className="font-medium truncate">{project.name}</p>
+                              <button
+                                type="button"
+                                className="max-w-full truncate text-left font-medium text-foreground hover:text-primary"
+                                onClick={() => router.push(`/projects/${project.id}`)}
+                                title={`Open ${project.name}`}
+                              >
+                                {project.name}
+                              </button>
                               <p className="text-xs text-muted-foreground truncate">
                                 {typeof project.task_count === "number"
                                   ? `${project.task_count} task${project.task_count === 1 ? "" : "s"}`
@@ -930,32 +1203,208 @@ export default function ProjectsPage() {
                           <span
                             className={`inline-flex px-3 py-1 rounded-full text-xs font-medium capitalize ${getStatusStyles(project.status)}`}
                             role="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleStatusChange(project);
-                            }}
+                            onClick={() => handleStatusChange(project)}
                           >
                             {project.status}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-muted-foreground">{project.deadline || "-"}</td>
-                        <td className="px-4 py-3 text-muted-foreground max-w-80 truncate">
-                          {assignees.length > 0 ? assignees.join(", ") : "-"}
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {project.deadline ? (
+                            <div className="flex flex-col gap-1">
+                              <span>{project.deadline}</span>
+                              <span className={cn("inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] font-medium", getDeadlineToneClass(deadlineInfo.tone))}>
+                                {deadlineInfo.label}
+                              </span>
+                            </div>
+                          ) : (
+                            "-"
+                          )}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono">
+                        <td className="hidden px-4 py-3 text-muted-foreground max-w-80 xl:table-cell">
+                          {assigneeMembers.length > 0 ? (
+                            <div className="flex items-center gap-2">
+                              <div className="flex -space-x-2">
+                                {assigneeMembers.slice(0, 5).map((member) => (
+                                  <div key={member.id} className="rounded-full border border-background" title={member.name}>
+                                    <MemberAvatar
+                                      name={member.name}
+                                      email={member.email}
+                                      userId={member.user_id}
+                                      sizeClass="h-6 w-6"
+                                      textClass="text-[10px]"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                              <span className="truncate text-xs text-muted-foreground">{assignees.join(", ")}</span>
+                            </div>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+                        <td className="hidden px-4 py-3 text-right font-mono xl:table-cell">
                           {project.budget ? `$${project.budget.toLocaleString()}` : "-"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-2 text-[11px] lg:h-9 lg:px-3 lg:text-sm"
+                              onClick={() => setPreviewProject(project)}
+                            >
+                              <Eye className="mr-1.5 h-4 w-4" />
+                              <span className="hidden md:inline">Preview</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-8 px-2 text-[11px] bg-primary text-primary-foreground hover:bg-primary/90 lg:h-9 lg:px-3 lg:text-sm"
+                              onClick={() => router.push(`/projects/${project.id}`)}
+                            >
+                              <span className="hidden md:inline">Open</span>
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+                </div>
+              ) : (
+                <div className="p-3 md:p-4">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {desktopSortedProjects.map((project, index) => {
+                      const assigneeMembers = getProjectAssignees(project);
+                      const deadlineInfo = getDeadlineCopy(project.deadline);
+                      const progress = getProjectCompletionEstimate(project.status, project.task_count);
+
+                      return (
+                        <div
+                          key={project.id}
+                          className={`rounded-xl border border-border/70 bg-background/60 p-3 transition-all duration-300 hover:border-primary/40 hover:bg-accent/10 ${highlightProjectId === project.id ? "ring-1 ring-amber-400/50 bg-amber-400/5" : ""}`}
+                          style={{ animationDelay: `${index * 40}ms` }}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <button
+                              type="button"
+                              className="min-w-0 text-left"
+                              onClick={() => router.push(`/projects/${project.id}`)}
+                              title={`Open ${project.name}`}
+                            >
+                              <p className="truncate text-sm font-semibold">{project.name}</p>
+                              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                {typeof project.task_count === "number"
+                                  ? `${project.task_count} task${project.task_count === 1 ? "" : "s"}`
+                                  : "No task count"}
+                              </p>
+                            </button>
+
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/60 bg-background/70 text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                                onClick={() => toggleStar(project.id)}
+                                title={starredIds.includes(project.id) ? "Unstar project" : "Star project"}
+                              >
+                                <Star className={cn("h-3.5 w-3.5", starredIds.includes(project.id) ? "text-amber-400" : "text-muted-foreground")} />
+                              </button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-[11px]"
+                                onClick={() => setPreviewProject(project)}
+                              >
+                                Preview
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="mt-2">
+                            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                              <span>Progress</span>
+                              <span>{progress}%</span>
+                            </div>
+                            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-primary/15">
+                              <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
+                            </div>
+                          </div>
+
+                          <div className="mt-2.5 flex items-center justify-between gap-2">
+                            <div className="flex -space-x-2">
+                              {assigneeMembers.slice(0, 4).map((member) => (
+                                <div key={member.id} className="rounded-full border border-background" title={member.name}>
+                                  <MemberAvatar
+                                    name={member.name}
+                                    email={member.email}
+                                    userId={member.user_id}
+                                    sizeClass="h-6 w-6"
+                                    textClass="text-[10px]"
+                                  />
+                                </div>
+                              ))}
+                              {assigneeMembers.length > 4 && (
+                                <div className="flex h-6 w-6 items-center justify-center rounded-full border border-background bg-muted text-[10px] text-muted-foreground">
+                                  +{assigneeMembers.length - 4}
+                                </div>
+                              )}
+                            </div>
+                            <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium", getDeadlineToneClass(deadlineInfo.tone))}>
+                              {deadlineInfo.label}
+                            </span>
+                          </div>
+
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${getStatusStyles(project.status)}`}>
+                              {project.status}
+                            </span>
+                            {(project.labels || []).slice(0, 2).map((label) => (
+                              <span key={label} className="inline-flex rounded-full border border-border/70 bg-accent/30 px-2 py-0.5 text-[10px]">
+                                {label}
+                              </span>
+                            ))}
+                          </div>
+
+                          <div className="mt-2.5 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                            <span className="truncate">{getClientDisplayName(project.client_name)}</span>
+                            <span className="font-mono">{project.budget ? `$${project.budget.toLocaleString()}` : "-"}</span>
+                          </div>
+
+                          <div className="mt-3 flex items-center justify-end gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-2.5 text-xs"
+                              onClick={() => setPreviewProject(project)}
+                            >
+                              <Eye className="mr-1.5 h-3.5 w-3.5" />
+                              Preview
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-8 bg-primary px-2.5 text-xs text-primary-foreground hover:bg-primary/90"
+                              onClick={() => router.push(`/projects/${project.id}`)}
+                            >
+                              Open
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
       )}
 
-      <ProjectQuickPreviewModal
+      <ProjectPreviewModal
         project={previewProject}
         canEdit={canEdit}
         availableMembers={dedupedMembers}
@@ -967,486 +1416,5 @@ export default function ProjectsPage() {
         onOpenProjectPage={(projectId) => router.push(`/projects/${projectId}`)}
       />
     </div>
-  );
-}
-
-function ProjectQuickPreviewModal({
-  project,
-  canEdit,
-  availableMembers,
-  onClose,
-  onProjectUpdated,
-  onOpenProjectPage,
-}: {
-  project: Project | null;
-  canEdit: boolean;
-  availableMembers: Member[];
-  onClose: () => void;
-  onProjectUpdated: (project: Project) => void;
-  onOpenProjectPage: (projectId: string) => void;
-}) {
-  const router = useRouter();
-  const [tasksLoading, setTasksLoading] = useState(false);
-  const [tasksExpanded, setTasksExpanded] = useState(false);
-  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
-  const [projectTasks, setProjectTasks] = useState<ProjectTaskPreview[]>([]);
-  const [quickEditMode, setQuickEditMode] = useState(false);
-  const [quickEditSaving, setQuickEditSaving] = useState(false);
-  const [quickEditName, setQuickEditName] = useState("");
-  const [quickEditStatus, setQuickEditStatus] = useState<Project["status"]>("active");
-  const [quickEditStartDate, setQuickEditStartDate] = useState("");
-  const [quickEditDeadline, setQuickEditDeadline] = useState("");
-  const [quickEditBudget, setQuickEditBudget] = useState("");
-  const [quickEditClient, setQuickEditClient] = useState("");
-  const [quickEditDescription, setQuickEditDescription] = useState("");
-  const [quickEditMemberIds, setQuickEditMemberIds] = useState<string[]>([]);
-  const [quickEditLabels, setQuickEditLabels] = useState<string[]>([]);
-  const [quickEditLabelInput, setQuickEditLabelInput] = useState("");
-
-  const parseIsoDate = (value: string): Date | undefined => {
-    if (!value) return undefined;
-    const parsed = new Date(`${value}T00:00:00`);
-    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
-  };
-
-  const serializeIsoDate = (value: Date | undefined): string => {
-    if (!value) return "";
-    const year = value.getFullYear();
-    const month = String(value.getMonth() + 1).padStart(2, "0");
-    const day = String(value.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
-
-  const formatDateLabel = (value?: string | null) => {
-    if (!value) return "-";
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return value;
-    return parsed.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-  };
-
-  const getTimelineProgress = (startDate?: string | null, deadline?: string | null) => {
-    if (!startDate || !deadline) return { hasTimeline: false, progress: 0, daysLeft: null as number | null };
-    const start = new Date(startDate);
-    const end = new Date(deadline);
-    const now = new Date();
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
-      return { hasTimeline: false, progress: 0, daysLeft: null as number | null };
-    }
-    const totalMs = end.getTime() - start.getTime();
-    const elapsedMs = Math.min(Math.max(now.getTime() - start.getTime(), 0), totalMs);
-    const progress = Math.round((elapsedMs / totalMs) * 100);
-    const daysLeft = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    return { hasTimeline: true, progress, daysLeft };
-  };
-
-  useEffect(() => {
-    if (!project) return;
-    const onEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", onEscape);
-    return () => window.removeEventListener("keydown", onEscape);
-  }, [project, onClose]);
-
-  useEffect(() => {
-    if (!project) return;
-
-    setQuickEditMode(false);
-    setTasksExpanded(false);
-    setDescriptionExpanded(false);
-    setQuickEditName(project.name || "");
-    setQuickEditStatus(project.status || "active");
-    setQuickEditStartDate(project.start_date || "");
-    setQuickEditDeadline(project.deadline || "");
-    setQuickEditBudget(typeof project.budget === "number" ? String(project.budget) : "");
-    setQuickEditClient(project.client_name || "");
-    setQuickEditDescription(project.description || "");
-    setQuickEditMemberIds(
-      (project.project_members || [])
-        .map((pm) => pm.members?.id)
-        .filter((id): id is string => Boolean(id))
-    );
-    setQuickEditLabels(project.labels || []);
-    setQuickEditLabelInput("");
-    setTasksLoading(true);
-
-    const loadTasks = async () => {
-      try {
-        const response = await fetch(`/api/tasks?projectId=${project.id}`, { cache: "no-store" });
-        const data = await response.json().catch(() => []);
-        if (response.ok && Array.isArray(data)) {
-          setProjectTasks(data);
-        } else {
-          setProjectTasks([]);
-        }
-      } catch {
-        setProjectTasks([]);
-      } finally {
-        setTasksLoading(false);
-      }
-    };
-
-    void loadTasks();
-  }, [project]);
-
-  if (!project) return null;
-
-  const dateRange: DateRange | undefined = {
-    from: parseIsoDate(quickEditStartDate),
-    to: parseIsoDate(quickEditDeadline),
-  };
-
-  const taskCount = typeof project.task_count === "number" ? project.task_count : projectTasks.length;
-  const longDescription = project.description || "";
-  const shouldClampDescription = longDescription.length > 220;
-  const descriptionText =
-    shouldClampDescription && !descriptionExpanded
-      ? `${longDescription.slice(0, 220).trimEnd()}...`
-      : longDescription;
-  const timeline = getTimelineProgress(project.start_date || null, project.deadline || null);
-
-  const saveQuickEdit = async () => {
-    if (!project || !quickEditName.trim()) return;
-    setQuickEditSaving(true);
-    try {
-      const response = await fetch(`/api/projects/${project.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: quickEditName.trim(),
-          status: quickEditStatus,
-          start_date: quickEditStartDate || null,
-          deadline: quickEditDeadline || null,
-          budget: quickEditBudget.trim() === "" ? null : Number(quickEditBudget),
-          client_name: quickEditClient.trim() || null,
-          description: quickEditDescription.trim() || null,
-          member_ids: quickEditMemberIds,
-          labels: quickEditLabels,
-        }),
-      });
-      const data = await response.json().catch(() => null);
-      if (!response.ok || !data) return;
-      onProjectUpdated({ ...project, ...data });
-      setQuickEditMode(false);
-    } finally {
-      setQuickEditSaving(false);
-    }
-  };
-
-  const toggleQuickEditMember = (memberId: string) => {
-    setQuickEditMemberIds((prev) =>
-      prev.includes(memberId) ? prev.filter((id) => id !== memberId) : [...prev, memberId]
-    );
-  };
-
-  const addQuickEditLabel = () => {
-    const normalized = quickEditLabelInput.trim().replace(/,/g, "");
-    if (!normalized) return;
-    setQuickEditLabels((prev) => (prev.includes(normalized) ? prev : [...prev, normalized]));
-    setQuickEditLabelInput("");
-  };
-
-  return (
-    <Dialog open={Boolean(project)} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="z-[220] sm:max-w-[min(94vw,1100px)] max-h-[90vh] overflow-y-auto border-primary/35 bg-background/95 p-0 [&>button]:hidden">
-        <DialogHeader className="sr-only">
-          <DialogTitle>Project preview</DialogTitle>
-          <DialogDescription>Detailed preview and quick edit for selected project.</DialogDescription>
-        </DialogHeader>
-        <Card className="glass relative w-full border-0 bg-transparent shadow-none">
-        <CardHeader className="sticky top-0 z-20 border-b border-border/60 bg-background/90 pb-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-          <button
-            type="button"
-            aria-label="Close preview"
-            className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background/80 text-muted-foreground"
-            onClick={onClose}
-          >
-            <span className="text-base leading-none">×</span>
-          </button>
-          <div className="md:flex md:items-start md:justify-between md:gap-4">
-            <div>
-            <p className="text-xs uppercase tracking-wide text-primary">Project Preview</p>
-            {quickEditMode ? (
-              <Input value={quickEditName} onChange={(e) => setQuickEditName(e.target.value)} className="mt-1 h-10 text-xl font-semibold" />
-            ) : (
-              <CardTitle className="mt-1 text-2xl">{project.name}</CardTitle>
-            )}
-            </div>
-            <div className="mt-3 min-w-0 md:mt-0 md:w-72">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Project timeline progress</p>
-              {timeline.hasTimeline ? (
-                <>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-primary/10">
-                    <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(4, Math.min(100, timeline.progress))}%` }} />
-                  </div>
-                  <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
-                    <span>{formatDateLabel(project.start_date)}</span>
-                    <span>{timeline.progress}%</span>
-                    <span>{formatDateLabel(project.deadline)}</span>
-                  </div>
-                </>
-              ) : (
-                <p className="mt-1 text-xs text-muted-foreground">Add start + deadline to track progress.</p>
-              )}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-4">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-lg border border-border/70 bg-background/50 p-3">
-              <Label className="block text-[11px] uppercase tracking-wide text-muted-foreground">Status</Label>
-              {quickEditMode ? (
-                <Select value={quickEditStatus} onValueChange={(value) => setQuickEditStatus(value as Project["status"])}>
-                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="in-progress">In progress</SelectItem>
-                    <SelectItem value="on-hold">On hold</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="closed">Closed</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Badge className={cn("mt-1 border text-[11px] capitalize", PROJECT_STATUS_BADGE_CLASS[project.status])}>
-                  {project.status}
-                </Badge>
-              )}
-            </div>
-            <div className="rounded-lg border border-border/70 bg-background/50 p-3">
-              <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Date Range</Label>
-              {quickEditMode ? (
-                <DateRangePicker
-                  numberOfMonths={2}
-                  showPresets={false}
-                  className="mt-1"
-                  date={dateRange}
-                  onDateChange={(range) => {
-                    setQuickEditStartDate(serializeIsoDate(range?.from));
-                    setQuickEditDeadline(serializeIsoDate(range?.to));
-                  }}
-                />
-              ) : <p className="mt-1 text-sm font-medium">{formatDateLabel(project.start_date)} to {formatDateLabel(project.deadline)}</p>}
-            </div>
-            <div className="rounded-lg border border-border/70 bg-background/50 p-3">
-              <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Budget</Label>
-              {quickEditMode ? (
-                <Input type="number" min="0" className="mt-1 h-9 text-sm" value={quickEditBudget} onChange={(e) => setQuickEditBudget(e.target.value)} />
-              ) : <p className="mt-1 text-sm font-medium">{project.budget ? `$${project.budget.toLocaleString()}` : "-"}</p>}
-            </div>
-            <div className="rounded-lg border border-border/70 bg-background/50 p-3">
-              <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Client</Label>
-              {quickEditMode ? (
-                <Input className="mt-1 h-9 text-sm" value={quickEditClient} onChange={(e) => setQuickEditClient(e.target.value)} />
-              ) : <p className="mt-1 text-sm font-medium">{getClientDisplayName(project.client_name)}</p>}
-            </div>
-
-            <div className="rounded-lg border border-border/70 bg-background/50 p-3 md:col-span-2">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Assigned Team</p>
-              {quickEditMode ? (
-                <div className="mt-2 space-y-2">
-                  <div className="grid max-h-40 gap-1 overflow-y-auto rounded-md border border-border/60 p-2">
-                    {availableMembers.map((member) => {
-                      const selected = quickEditMemberIds.includes(member.id);
-                      return (
-                        <button
-                          key={member.id}
-                          type="button"
-                          onClick={() => toggleQuickEditMember(member.id)}
-                          className={cn(
-                            "flex items-center justify-between rounded-md border px-2 py-1.5 text-left text-xs transition-colors",
-                            selected
-                              ? "border-primary/50 bg-primary/10 text-foreground"
-                              : "border-border/60 bg-background hover:bg-accent/30"
-                          )}
-                        >
-                          <span className="truncate">{member.name}</span>
-                          <span className="text-muted-foreground">{selected ? "Assigned" : "Assign"}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : project.project_members && project.project_members.length > 0 ? (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {project.project_members
-                    .map((pm) => pm.members)
-                    .filter((member): member is Member => Boolean(member))
-                    .map((member) => (
-                        <button
-                          key={`${member.user_id || member.email || member.name}`}
-                          type="button"
-                          onClick={() => router.push(`/team/${member.id}`)}
-                          className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/70 px-2 py-1"
-                        >
-                        <MemberAvatar
-                          name={member.name}
-                          email={member.email}
-                          userId={member.user_id || undefined}
-                          sizeClass="h-6 w-6"
-                          textClass="text-[10px]"
-                        />
-                        <span className="text-xs font-medium">{member.name || member.email || "Member"}</span>
-                        </button>
-                      ))}
-                </div>
-              ) : (
-                <p className="mt-1 text-sm font-medium">No members assigned</p>
-              )}
-            </div>
-            <div className="rounded-lg border border-border/70 bg-background/50 p-3 md:col-span-2 xl:col-span-2">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Labels</p>
-              {quickEditMode ? (
-                <div className="mt-2 space-y-2">
-                  <div className="flex flex-wrap gap-1.5">
-                    {quickEditLabels.length > 0 ? (
-                      quickEditLabels.map((label) => (
-                        <Badge key={label} variant="outline" className="inline-flex items-center gap-1 text-xs">
-                          {label}
-                          <button
-                            type="button"
-                            className="text-muted-foreground hover:text-foreground"
-                            onClick={() => setQuickEditLabels((prev) => prev.filter((item) => item !== label))}
-                          >
-                            ×
-                          </button>
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-sm text-muted-foreground">No labels</span>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <Input
-                      value={quickEditLabelInput}
-                      onChange={(event) => setQuickEditLabelInput(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === ",") {
-                          event.preventDefault();
-                          addQuickEditLabel();
-                        }
-                      }}
-                      className="h-9"
-                      placeholder="Add label"
-                    />
-                    <Button type="button" size="sm" variant="outline" onClick={addQuickEditLabel}>
-                      Add
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {(project.labels || []).length > 0 ? (
-                    (project.labels || []).map((label) => (
-                      <span key={label} className="rounded-full border border-border/70 bg-accent/30 px-2 py-0.5 text-xs">
-                        {label}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-sm text-muted-foreground">No labels</span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="rounded-lg border border-border/70 bg-background/50 p-3 md:col-span-2 xl:col-span-4">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Tasks</p>
-                <button
-                  type="button"
-                  className="text-xs text-primary underline-offset-2 hover:underline"
-                  onClick={() => setTasksExpanded((open) => !open)}
-                >
-                  {tasksExpanded ? "Collapse task timeline" : "Expand task timeline preview"}
-                </button>
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {tasksLoading
-                  ? "Loading tasks..."
-                  : `${taskCount} task${taskCount === 1 ? "" : "s"} linked to this project. Expand to preview and open each task.`}
-              </p>
-              <div className="mt-2">
-                <Button size="sm" variant="outline" onClick={() => router.push(`/tasks?projectId=${project.id}`)}>
-                  Open project tasks
-                </Button>
-              </div>
-              {tasksExpanded && (
-                <div className="mt-3 space-y-2">
-                  {projectTasks.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No tasks found.</p>
-                  ) : (
-                    projectTasks.slice(0, 6).map((task) => (
-                      <button
-                        key={task.id}
-                        type="button"
-                        onClick={() => router.push(`/tasks?projectId=${project.id}&taskId=${task.id}`)}
-                        className="flex w-full items-center justify-between rounded-md border border-border/60 px-2 py-1.5 text-left text-xs hover:bg-accent/30"
-                      >
-                        <span className="truncate pr-3">{task.title}</span>
-                        <span className="shrink-0 capitalize text-muted-foreground">{task.status}</span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="rounded-lg border border-border/70 bg-background/50 p-3 md:col-span-2 xl:col-span-4">
-              <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Description</Label>
-              {quickEditMode ? (
-                <Textarea className="mt-1 text-sm" rows={4} value={quickEditDescription} onChange={(e) => setQuickEditDescription(e.target.value)} />
-              ) : (
-                <>
-                  <p className="mt-1 text-sm text-muted-foreground">{descriptionText || "No description available."}</p>
-                  {shouldClampDescription && (
-                    <button type="button" className="mt-2 text-xs text-primary underline-offset-2 hover:underline" onClick={() => setDescriptionExpanded((open) => !open)}>
-                      {descriptionExpanded ? "Show less" : "Show more"}
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        </CardContent>
-        <CardFooter className="sticky bottom-0 z-20 flex flex-col gap-2 border-t border-border/60 bg-background/90 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-            {quickEditMode && (
-              <Button
-                size="sm"
-                variant="destructive"
-                className="w-full sm:w-auto"
-                onClick={() => setQuickEditMode(false)}
-                disabled={quickEditSaving}
-              >
-                Exit quick edit
-              </Button>
-            )}
-          </div>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-            {canEdit && (
-              quickEditMode ? (
-                <Button
-                  size="sm"
-                  className="w-full sm:w-auto"
-                  onClick={saveQuickEdit}
-                  disabled={quickEditSaving || !quickEditName.trim()}
-                >
-                  {quickEditSaving ? "Saving..." : "Save quick edit"}
-                </Button>
-              ) : (
-                <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => setQuickEditMode(true)}>
-                  Quick Edit
-                </Button>
-              )
-            )}
-            <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => onOpenProjectPage(project.id)}>
-              Open Project Page
-            </Button>
-          </div>
-        </CardFooter>
-      </Card>
-      </DialogContent>
-    </Dialog>
   );
 }

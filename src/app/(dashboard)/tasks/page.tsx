@@ -24,6 +24,9 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 import {
   CalendarDays,
+  Check,
+  ChevronsUpDown,
+  Clock3,
   ChevronLeft,
   ChevronRight,
   GripVertical,
@@ -61,6 +64,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 
 type Task = {
@@ -75,7 +87,8 @@ type Task = {
   position?: number
 }
 
-type ViewMode = "kanban" | "list" | "calendar"
+type ViewMode = "kanban" | "list" | "timeline" | "calendar"
+type TimelineBucket = "overdue" | "today" | "upcoming" | "later" | "done" | "no_due"
 
 type Project = {
   id: string
@@ -130,6 +143,57 @@ function formatDate(dateStr: string | null) {
   if (!dateStr) return "-"
   const date = new Date(dateStr)
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+}
+
+function getDueInLabel(dueDate: string | null, status: Task["status"]) {
+  if (!dueDate) {
+    return { label: "No due date", bucket: "no_due" as TimelineBucket, tone: "text-muted-foreground" }
+  }
+
+  const due = new Date(dueDate)
+  if (Number.isNaN(due.getTime())) {
+    return { label: "Invalid due date", bucket: "no_due" as TimelineBucket, tone: "text-muted-foreground" }
+  }
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  due.setHours(0, 0, 0, 0)
+
+  const diffDays = Math.round((due.getTime() - today.getTime()) / 86400000)
+
+  if (status === "done") {
+    return {
+      label: diffDays >= 0 ? "Completed" : "Completed (was overdue)",
+      bucket: "done" as TimelineBucket,
+      tone: "text-emerald-600 dark:text-emerald-400",
+    }
+  }
+
+  if (diffDays < 0) {
+    return {
+      label: `Overdue by ${Math.abs(diffDays)} day${Math.abs(diffDays) === 1 ? "" : "s"}`,
+      bucket: "overdue" as TimelineBucket,
+      tone: "text-destructive",
+    }
+  }
+
+  if (diffDays === 0) {
+    return { label: "Due today", bucket: "today" as TimelineBucket, tone: "text-orange-600 dark:text-orange-400" }
+  }
+
+  if (diffDays <= 7) {
+    return {
+      label: `Due in ${diffDays} day${diffDays === 1 ? "" : "s"}`,
+      bucket: "upcoming" as TimelineBucket,
+      tone: "text-blue-600 dark:text-blue-400",
+    }
+  }
+
+  return {
+    label: `Due in ${diffDays} days`,
+    bucket: "later" as TimelineBucket,
+    tone: "text-muted-foreground",
+  }
 }
 
 function getDateKey(date: Date): string {
@@ -327,10 +391,10 @@ export default function TasksPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [projectFilter, setProjectFilter] = useState<string[]>(projectQueryId ? [projectQueryId] : [])
+  const [projectFilterOpen, setProjectFilterOpen] = useState(false)
   const [priorityFilter, setPriorityFilter] = useState<string[]>(searchParams.get("priority") ? [searchParams.get("priority")!] : [])
   const [assigneeFilter, setAssigneeFilter] = useState<string[]>(searchParams.get("assigneeMemberId") ? [searchParams.get("assigneeMemberId")!] : [])
   const [assigneeFilterOpen, setAssigneeFilterOpen] = useState(false)
-  const assigneeFilterRef = useRef<HTMLDivElement | null>(null)
   const [dueFilter, setDueFilter] = useState<string[]>([])
   const [myTasksOnly, setMyTasksOnly] = useState(() => {
     if (typeof window === "undefined") return true
@@ -357,6 +421,12 @@ export default function TasksPage() {
   })
   const [calendarDate, setCalendarDate] = useState<Date>(new Date())
   const [calendarSelectedDate, setCalendarSelectedDate] = useState<Date | undefined>(new Date())
+  const [timelineExtra, setTimelineExtra] = useState<{ later: Task[]; done: Task[] }>({ later: [], done: [] })
+  const [timelineHasMore, setTimelineHasMore] = useState<{ later: boolean; done: boolean }>({ later: true, done: true })
+  const [timelineLoadingBucket, setTimelineLoadingBucket] = useState<{ later: boolean; done: boolean }>({
+    later: false,
+    done: false,
+  })
 
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [newProjectId, setNewProjectId] = useState("")
@@ -433,6 +503,7 @@ export default function TasksPage() {
       params.set("dueBefore", `${yyyy}-${mm}-${dd}`)
     }
     if (debouncedSearch) params.set("q", debouncedSearch)
+    if (viewMode === "timeline") params.set("timeline", "1")
 
     const suffix = params.toString() ? `?${params.toString()}` : ""
     const response = await fetch(`/api/tasks${suffix}`, { cache: "no-store" })
@@ -441,7 +512,7 @@ export default function TasksPage() {
       throw new Error(data?.error || "Failed to load tasks")
     }
     return Array.isArray(data) ? (data as Task[]) : []
-  }, [projectFilter, priorityFilter, assigneeFilter, dueFilter, debouncedSearch])
+  }, [projectFilter, priorityFilter, assigneeFilter, dueFilter, debouncedSearch, viewMode])
 
   const loadAll = useCallback(async () => {
     setLoading(true)
@@ -484,19 +555,6 @@ export default function TasksPage() {
       setNewProjectId(projectFilter[0])
     }
   }, [projectFilter])
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        assigneeFilterRef.current &&
-        !assigneeFilterRef.current.contains(event.target as Node)
-      ) {
-        setAssigneeFilterOpen(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
 
   useEffect(() => {
     setListPage(1)
@@ -557,6 +615,116 @@ export default function TasksPage() {
     debouncedSearch.trim().length > 0
 
   const listTasks = useMemo(() => Object.values(grouped).flat(), [grouped])
+
+  const timelineTasks = useMemo(() => {
+    return [...listTasks].sort((a, b) => {
+      if (!a.due_date && !b.due_date) return a.title.localeCompare(b.title)
+      if (!a.due_date) return 1
+      if (!b.due_date) return -1
+
+      const aTs = new Date(a.due_date).getTime()
+      const bTs = new Date(b.due_date).getTime()
+      if (Number.isNaN(aTs) && Number.isNaN(bTs)) return a.title.localeCompare(b.title)
+      if (Number.isNaN(aTs)) return 1
+      if (Number.isNaN(bTs)) return -1
+      return aTs - bTs
+    })
+  }, [listTasks])
+
+  const timelineBaseBucketCounts = useMemo(() => {
+    return timelineTasks.reduce(
+      (acc, task) => {
+        const dueInfo = getDueInLabel(task.due_date, task.status)
+        if (dueInfo.bucket === "later") acc.later += 1
+        if (dueInfo.bucket === "done") acc.done += 1
+        return acc
+      },
+      { later: 0, done: 0 }
+    )
+  }, [timelineTasks])
+
+  useEffect(() => {
+    setTimelineExtra({ later: [], done: [] })
+    setTimelineHasMore({
+      later: timelineBaseBucketCounts.later >= 5,
+      done: timelineBaseBucketCounts.done >= 5,
+    })
+    setTimelineLoadingBucket({ later: false, done: false })
+  }, [timelineBaseBucketCounts.later, timelineBaseBucketCounts.done, viewMode])
+
+  const loadMoreTimelineBucket = useCallback(
+    async (bucket: "later" | "done") => {
+      if (timelineLoadingBucket[bucket] || !timelineHasMore[bucket]) return
+
+      setTimelineLoadingBucket((prev) => ({ ...prev, [bucket]: true }))
+
+      try {
+        const params = new URLSearchParams()
+        if (projectFilter.length > 0) params.set("projectId", projectFilter.join(","))
+        if (priorityFilter.length > 0) params.set("priority", priorityFilter.join(","))
+        if (assigneeFilter.length > 0) params.set("assigneeMemberId", assigneeFilter.join(","))
+        if (dueFilter.length > 0 && dueFilter[0] === "overdue") {
+          const now = new Date()
+          const yyyy = now.getFullYear()
+          const mm = String(now.getMonth() + 1).padStart(2, "0")
+          const dd = String(now.getDate()).padStart(2, "0")
+          params.set("dueBefore", `${yyyy}-${mm}-${dd}`)
+        } else if (dueFilter.length > 0 && dueFilter[0] === "due_7d") {
+          const now = new Date()
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+          const in7 = new Date(now)
+          in7.setDate(in7.getDate() + 7)
+          const fromY = today.getFullYear()
+          const fromM = String(today.getMonth() + 1).padStart(2, "0")
+          const fromD = String(today.getDate()).padStart(2, "0")
+          const yyyy = in7.getFullYear()
+          const mm = String(in7.getMonth() + 1).padStart(2, "0")
+          const dd = String(in7.getDate()).padStart(2, "0")
+          params.set("dueFrom", `${fromY}-${fromM}-${fromD}`)
+          params.set("dueBefore", `${yyyy}-${mm}-${dd}`)
+        }
+        if (debouncedSearch) params.set("q", debouncedSearch)
+
+        params.set("timeline", "1")
+        params.set("timelineBucket", bucket)
+
+        const currentOffset = 5 + timelineExtra[bucket].length
+        params.set("timelineOffset", String(currentOffset))
+        params.set("timelineLimit", "5")
+
+        const response = await fetch(`/api/tasks?${params.toString()}`, { cache: "no-store" })
+        const data = await response.json().catch(() => null)
+
+        if (!response.ok || !data) {
+          throw new Error(data?.error || "Failed to load more timeline tasks")
+        }
+
+        const nextTasks = Array.isArray(data.tasks) ? (data.tasks as Task[]) : []
+        setTimelineExtra((prev) => ({
+          ...prev,
+          [bucket]: [...prev[bucket], ...nextTasks],
+        }))
+        setTimelineHasMore((prev) => ({
+          ...prev,
+          [bucket]: Boolean(data.hasMore),
+        }))
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load more timeline tasks")
+      } finally {
+        setTimelineLoadingBucket((prev) => ({ ...prev, [bucket]: false }))
+      }
+    },
+    [
+      assigneeFilter,
+      debouncedSearch,
+      dueFilter,
+      priorityFilter,
+      projectFilter,
+      timelineExtra,
+      timelineHasMore,
+      timelineLoadingBucket,
+    ]
+  )
 
   const sortedListTasks = useMemo(() => {
     const rows = [...listTasks]
@@ -866,17 +1034,56 @@ export default function TasksPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+      <div className="flex items-start justify-between gap-3 sm:items-center sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Tasks</h1>
-          <p className="text-muted-foreground">Manage tasks across all projects.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Tasks</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">Manage tasks across all projects.</p>
+
+          <div className="mt-3 flex w-full items-center gap-1 rounded-md border p-0.5 sm:hidden">
+            <Button
+              variant={viewMode === "kanban" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("kanban")}
+              className={cn("h-8 flex-1 gap-1.5", viewMode !== "kanban" && "text-muted-foreground")}
+            >
+              <LayoutGrid className="h-4 w-4" />
+              <span>Kanban</span>
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("list")}
+              className={cn("h-8 flex-1 gap-1.5", viewMode !== "list" && "text-muted-foreground")}
+            >
+              <List className="h-4 w-4" />
+              <span>List</span>
+            </Button>
+            <Button
+              variant={viewMode === "timeline" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("timeline")}
+              className={cn("h-8 flex-1 gap-1.5", viewMode !== "timeline" && "text-muted-foreground")}
+            >
+              <Clock3 className="h-4 w-4" />
+              <span>Timeline</span>
+            </Button>
+            <Button
+              variant={viewMode === "calendar" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("calendar")}
+              className={cn("h-8 flex-1 gap-1.5", viewMode !== "calendar" && "text-muted-foreground")}
+            >
+              <CalendarDays className="h-4 w-4" />
+              <span>Calendar</span>
+            </Button>
+          </div>
         </div>
         
-        <div className="flex w-full flex-col items-start gap-2 xl:w-auto xl:items-end">
+        <div className="flex shrink-0 flex-col items-end gap-2">
           {canEdit && (
             <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="w-full sm:w-auto">
+                <Button className="w-fit shrink-0">
                   <Plus className="mr-2 h-4 w-4" />
                   Add Task
                 </Button>
@@ -980,7 +1187,7 @@ export default function TasksPage() {
             </Dialog>
           )}
           
-          <div className="flex w-full items-center gap-1 rounded-md border p-0.5 sm:w-auto">
+          <div className="hidden w-full items-center gap-1 rounded-md border p-0.5 sm:flex sm:w-auto">
             <Button
               variant={viewMode === "kanban" ? "default" : "ghost"}
               size="sm"
@@ -1000,6 +1207,15 @@ export default function TasksPage() {
               <span className="hidden sm:inline">List</span>
             </Button>
             <Button
+              variant={viewMode === "timeline" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("timeline")}
+              className={cn("gap-2 h-8", viewMode !== "timeline" && "text-muted-foreground")}
+            >
+              <Clock3 className="h-4 w-4" />
+              <span className="hidden sm:inline">Timeline</span>
+            </Button>
+            <Button
               variant={viewMode === "calendar" ? "default" : "ghost"}
               size="sm"
               onClick={() => setViewMode("calendar")}
@@ -1014,16 +1230,16 @@ export default function TasksPage() {
 
       {/* Filters */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between lg:hidden">
+        <div className="lg:hidden">
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="h-8"
+            className="w-full justify-center"
             onClick={() => setMobileFiltersOpen((prev) => !prev)}
           >
             <SlidersHorizontal className="mr-2 h-4 w-4" />
-            {mobileFiltersOpen ? "Hide filters" : "Show filters"}
+            {mobileFiltersOpen ? "Hide Filters" : "Show Filters"}
           </Button>
         </div>
 
@@ -1057,18 +1273,65 @@ export default function TasksPage() {
             <span className={cn("font-medium", myTasksOnly && "text-primary")}>My tasks</span>
           </label>
 
-          <select
-            value={projectFilter[0] || ""}
-            onChange={(e) => setProjectFilter(e.target.value ? [e.target.value] : [])}
-            className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm lg:w-auto"
-          >
-            <option value="">All Projects</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
+          <Popover open={projectFilterOpen} onOpenChange={setProjectFilterOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                role="combobox"
+                aria-expanded={projectFilterOpen}
+                className="h-10 w-full justify-between rounded-lg px-3 text-sm font-normal lg:w-[220px]"
+              >
+                <span className="truncate">
+                  {projectFilter[0]
+                    ? projects.find((project) => project.id === projectFilter[0])?.name || "Project"
+                    : "All Projects"}
+                </span>
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+              <Command className="[&_[data-slot=command-input-wrapper]]:focus-within:ring-0 [&_[data-slot=command-input-wrapper]]:focus-within:ring-offset-0 [&_[data-slot=command-input-wrapper]]:focus-within:outline-none [&_[data-slot=command-input-wrapper]]:focus-within:border-b">
+                <CommandInput
+                  placeholder="Search projects..."
+                  className="no-global-focus-ring h-10 border-0 outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                />
+                <CommandList>
+                  <CommandEmpty>No project found.</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem
+                      value="__all_projects__"
+                      onSelect={() => {
+                        setProjectFilter([])
+                        setProjectFilterOpen(false)
+                      }}
+                    >
+                      <Check className={cn("mr-2 h-4 w-4", projectFilter.length === 0 ? "opacity-100" : "opacity-0")} />
+                      All Projects
+                    </CommandItem>
+                    {projects.map((project) => (
+                      <CommandItem
+                        key={project.id}
+                        value={`${project.name} ${project.id}`}
+                        onSelect={() => {
+                          setProjectFilter([project.id])
+                          setProjectFilterOpen(false)
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            projectFilter[0] === project.id ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        {project.name}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
           
           <select
             value={priorityFilter[0] || ""}
@@ -1082,57 +1345,65 @@ export default function TasksPage() {
             <option value="urgent">Urgent</option>
           </select>
 
-          <div className="relative w-full lg:min-w-56 lg:w-auto" ref={assigneeFilterRef}>
-            <button
-              type="button"
-              onClick={() => setAssigneeFilterOpen(!assigneeFilterOpen)}
-              className="h-10 w-full rounded-lg border border-input bg-background px-3 text-left text-sm"
-            >
-              {assigneeFilter.length === 0
-                ? "Filter by assignee"
-                : `${assigneeFilter.length} assignee${assigneeFilter.length > 1 ? "s" : ""} selected`}
-            </button>
-
-            {assigneeFilterOpen && (
-              <div className="absolute z-20 mt-2 max-h-72 w-full overflow-auto rounded-lg border border-border bg-card p-2 shadow-xl">
-                {members.length === 0 ? (
-                  <p className="px-2 py-1 text-xs text-muted-foreground">No team members available</p>
-                ) : (
-                  members.map((member) => {
-                    const checked = assigneeFilter.includes(member.id)
-                    return (
-                      <button
-                        key={member.id}
-                        type="button"
-                        onClick={() => {
-                          setAssigneeFilter((prev) =>
-                            prev.includes(member.id)
-                              ? prev.filter((id) => id !== member.id)
-                              : [...prev, member.id],
-                          )
-                        }}
-                        className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-sm hover:bg-accent/60"
+          <Popover open={assigneeFilterOpen} onOpenChange={setAssigneeFilterOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                role="combobox"
+                aria-expanded={assigneeFilterOpen}
+                className="h-10 w-full justify-between rounded-lg px-3 text-sm font-normal lg:w-[240px]"
+              >
+                <span className="truncate">
+                  {assigneeFilter.length === 0
+                    ? "Filter by assignee"
+                    : `${assigneeFilter.length} assignee${assigneeFilter.length > 1 ? "s" : ""} selected`}
+                </span>
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+              <Command>
+                <CommandInput
+                  placeholder="Search assignees..."
+                  className="no-global-focus-ring h-10 border-0 outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                />
+                <CommandList className="max-h-[240px]">
+                  <CommandEmpty>No assignee found.</CommandEmpty>
+                  <CommandGroup>
+                    {members.map((member) => {
+                      const checked = assigneeFilter.includes(member.id)
+                      return (
+                        <CommandItem
+                          key={member.id}
+                          value={`${member.name} ${member.id}`}
+                          onSelect={() => {
+                            setAssigneeFilter((prev) =>
+                              prev.includes(member.id)
+                                ? prev.filter((id) => id !== member.id)
+                                : [...prev, member.id]
+                            )
+                          }}
+                        >
+                          <Check className={cn("mr-2 h-4 w-4", checked ? "opacity-100" : "opacity-0")} />
+                          <span className="truncate">{member.name}</span>
+                        </CommandItem>
+                      )
+                    })}
+                    {assigneeFilter.length > 0 && (
+                      <CommandItem
+                        value="__clear_assignees__"
+                        onSelect={() => setAssigneeFilter([])}
+                        className="text-muted-foreground"
                       >
-                        <span className="truncate">{member.name}</span>
-                        {checked && <span className="h-4 w-4 text-primary">✓</span>}
-                      </button>
-                    )
-                  })
-                )}
-                {assigneeFilter.length > 0 && (
-                  <div className="mt-2 border-t border-border pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setAssigneeFilter([])}
-                      className="w-full rounded-md px-2 py-1 text-left text-xs text-muted-foreground hover:bg-accent/60"
-                    >
-                      Clear selection
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+                        Clear selection
+                      </CommandItem>
+                    )}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
           
           <select
             value={dueFilter[0] || "all"}
@@ -1554,6 +1825,125 @@ export default function TasksPage() {
                 </Button>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      ) : viewMode === "timeline" ? (
+        <Card className="glass">
+          <CardHeader>
+            <CardTitle className="text-base">Task timeline</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {(() => {
+              const bucketOrder: TimelineBucket[] = ["overdue", "today", "upcoming", "later", "done", "no_due"]
+              const bucketLabel: Record<TimelineBucket, string> = {
+                overdue: "Overdue",
+                today: "Due Today",
+                upcoming: "Due in 1-7 Days",
+                later: "Later",
+                done: "Completed",
+                no_due: "No Due Date",
+              }
+
+              const bucketed = timelineTasks.reduce<Record<TimelineBucket, Task[]>>(
+                (acc, task) => {
+                  const dueInfo = getDueInLabel(task.due_date, task.status)
+                  acc[dueInfo.bucket].push(task)
+                  return acc
+                },
+                {
+                  overdue: [],
+                  today: [],
+                  upcoming: [],
+                  later: [],
+                  done: [],
+                  no_due: [],
+                }
+              )
+
+              if (timelineTasks.length === 0) {
+                return <p className="text-sm text-muted-foreground">No tasks available for timeline view.</p>
+              }
+
+              return bucketOrder.map((bucket) => {
+                const baseTasksInBucket = bucketed[bucket]
+                const extraTasks = bucket === "later" ? timelineExtra.later : bucket === "done" ? timelineExtra.done : []
+                const tasksInBucket = [...baseTasksInBucket, ...extraTasks]
+                if (tasksInBucket.length === 0) return null
+
+                const visibleTasks = tasksInBucket
+                const canLoadMore = (bucket === "later" || bucket === "done") && timelineHasMore[bucket]
+                const isLoadingMore = bucket === "later" || bucket === "done" ? timelineLoadingBucket[bucket] : false
+
+                return (
+                  <div key={bucket} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold">{bucketLabel[bucket]}</h3>
+                      <Badge variant="outline" className="text-xs">
+                        {visibleTasks.length}
+                      </Badge>
+                    </div>
+                    <div className="relative pl-4">
+                      <div className="absolute bottom-2 left-1 top-2 w-px bg-border/70" aria-hidden="true" />
+                      <div className="space-y-2">
+                      {visibleTasks.map((task) => {
+                        const dueInfo = getDueInLabel(task.due_date, task.status)
+                        return (
+                          <div key={task.id} className="relative pl-4">
+                            <span
+                              className={cn(
+                                "absolute left-[-6px] top-3 h-3 w-3 rounded-full border-2 border-background",
+                                dueInfo.bucket === "overdue" && "bg-destructive",
+                                dueInfo.bucket === "today" && "bg-orange-500",
+                                dueInfo.bucket === "upcoming" && "bg-blue-500",
+                                dueInfo.bucket === "later" && "bg-muted-foreground",
+                                dueInfo.bucket === "done" && "bg-emerald-500",
+                                dueInfo.bucket === "no_due" && "bg-zinc-400"
+                              )}
+                              aria-hidden="true"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => openEditDialog(task)}
+                              className="w-full rounded-lg border border-border/70 bg-card px-3 py-2 text-left transition-colors hover:bg-accent/40"
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className={cn("text-sm font-medium", task.status === "done" && "line-through text-muted-foreground")}>
+                                  {task.title}
+                                </p>
+                                <Badge variant={priorityConfig[task.priority].variant} className="text-[11px]">
+                                  {priorityConfig[task.priority].label}
+                                </Badge>
+                              </div>
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                <span>{getProjectName(projects, task.project_id)}</span>
+                                <span>•</span>
+                                <span>{getMemberName(members, task.assignee_member_id)}</span>
+                                <span>•</span>
+                                <span className={cn(dueInfo.tone)}>{dueInfo.label}</span>
+                              </div>
+                            </button>
+                          </div>
+                        )
+                      })}
+                      </div>
+                      {(bucket === "later" || bucket === "done") && (
+                        <div className="pt-2 pl-4">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={!canLoadMore || isLoadingMore}
+                            onClick={() => loadMoreTimelineBucket(bucket)}
+                          >
+                            {isLoadingMore ? "Loading..." : canLoadMore ? "Load 5 more" : "No more tasks"}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })
+            })()}
           </CardContent>
         </Card>
       ) : viewMode === "calendar" ? (

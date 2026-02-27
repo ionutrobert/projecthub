@@ -74,11 +74,12 @@ export function TabsTrigger({
     <button
       type="button"
       role="tab"
+      data-state={isActive ? "active" : "inactive"}
       aria-selected={isActive}
       aria-controls={`tab-content-${value}`}
       onClick={() => setValue(value)}
       className={cn(
-        "inline-flex h-8 items-center justify-center rounded-md px-3 text-sm font-medium transition-colors",
+        "inline-flex h-8 cursor-pointer items-center justify-center rounded-md px-3 text-sm font-medium transition-colors",
         isActive ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
         className
       )}

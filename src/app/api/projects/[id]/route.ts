@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { revalidateTag } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 import { getRoleContext } from "@/lib/server-authz"
+import { logProjectActivity } from "@/lib/project-activity"
 import { z } from "zod"
 
 const projectStatusSchema = z.enum([
@@ -88,6 +89,24 @@ export async function PUT(
 
   const payload = parsed.data
 
+  const { data: previousProject } = await supabase
+    .from("projects")
+    .select("id,name,status,start_date,deadline,budget,client_name,description,labels")
+    .eq("id", id)
+    .single()
+
+  if (!previousProject) {
+    return NextResponse.json({ error: "Project not found" }, { status: 404 })
+  }
+
+  const hadMemberUpdate = Array.isArray(payload.member_ids)
+  const { data: previousMemberRows } = hadMemberUpdate
+    ? await supabase
+        .from("project_members")
+        .select("member_id")
+        .eq("project_id", id)
+    : { data: [] as Array<{ member_id: string }> }
+
   const { data: project, error } = await supabase
     .from("projects")
     .update({
@@ -129,6 +148,101 @@ export async function PUT(
       const { error: insError } = await supabase.from("project_members").insert(rows)
       if (insError) {
         return NextResponse.json({ error: insError.message }, { status: 500 })
+      }
+    }
+  }
+
+  const metadataChanges: Record<string, unknown> = {}
+  if (payload.status !== undefined && payload.status !== previousProject.status) {
+    metadataChanges.status = {
+      from: previousProject.status,
+      to: payload.status,
+    }
+  }
+  if (payload.start_date !== undefined && payload.start_date !== previousProject.start_date) {
+    metadataChanges.start_date = {
+      from: previousProject.start_date,
+      to: payload.start_date,
+    }
+  }
+  if (payload.deadline !== undefined && payload.deadline !== previousProject.deadline) {
+    metadataChanges.deadline = {
+      from: previousProject.deadline,
+      to: payload.deadline,
+    }
+  }
+  if (payload.name !== undefined && payload.name !== previousProject.name) {
+    metadataChanges.name = {
+      from: previousProject.name,
+      to: payload.name,
+    }
+  }
+  if (payload.client_name !== undefined && payload.client_name !== previousProject.client_name) {
+    metadataChanges.client_name = {
+      from: previousProject.client_name,
+      to: payload.client_name,
+    }
+  }
+
+  if (Object.keys(metadataChanges).length > 0) {
+    void logProjectActivity(supabase, {
+      projectId: id,
+      actorUserId: user.id,
+      eventType: "project_updated",
+      entityType: "project",
+      entityId: id,
+      message: `Updated project ${project.name}`,
+      metadata: metadataChanges,
+    })
+  }
+
+  if (hadMemberUpdate) {
+    const previousMemberIds = new Set((previousMemberRows || []).map((row) => row.member_id))
+    const nextMemberIds = new Set(payload.member_ids || [])
+
+    const addedMemberIds = [...nextMemberIds].filter((memberId) => !previousMemberIds.has(memberId))
+    const removedMemberIds = [...previousMemberIds].filter((memberId) => !nextMemberIds.has(memberId))
+    const changedMemberIds = [...new Set([...addedMemberIds, ...removedMemberIds])]
+
+    if (changedMemberIds.length > 0) {
+      const { data: memberRows } = await supabase
+        .from("members")
+        .select("id,name,email")
+        .in("id", changedMemberIds)
+      const memberById = new Map((memberRows || []).map((member) => [member.id, member]))
+
+      for (const memberId of addedMemberIds) {
+        const member = memberById.get(memberId)
+        void logProjectActivity(supabase, {
+          projectId: id,
+          actorUserId: user.id,
+          eventType: "member_added",
+          entityType: "member",
+          entityId: memberId,
+          message: `Added ${member?.name || member?.email || "member"} to project`,
+          metadata: {
+            member_id: memberId,
+            member_name: member?.name || null,
+            member_email: member?.email || null,
+          },
+        })
+      }
+
+      for (const memberId of removedMemberIds) {
+        const member = memberById.get(memberId)
+        void logProjectActivity(supabase, {
+          projectId: id,
+          actorUserId: user.id,
+          eventType: "member_removed",
+          entityType: "member",
+          entityId: memberId,
+          message: `Removed ${member?.name || member?.email || "member"} from project`,
+          metadata: {
+            member_id: memberId,
+            member_name: member?.name || null,
+            member_email: member?.email || null,
+          },
+        })
       }
     }
   }

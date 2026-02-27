@@ -23,8 +23,8 @@ import { cn } from "@/lib/utils"
 const navigation = [
   { name: "Dashboard", href: "/", icon: null },
   { name: "Projects", href: "/projects", icon: null },
-  { name: "Clients", href: "/clients", icon: null },
   { name: "Tasks", href: "/tasks", icon: null },
+  { name: "Clients", href: "/clients", icon: null },
   { name: "Team", href: "/team", icon: null },
   { name: "Reports", href: "/reports", icon: null },
 ]

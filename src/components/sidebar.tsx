@@ -12,8 +12,8 @@ import { useState, useRef, useEffect } from "react"
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Projects", href: "/projects", icon: FolderKanban },
-  { name: "Clients", href: "/clients", icon: Building2 },
   { name: "Tasks", href: "/tasks", icon: CheckSquare },
+  { name: "Clients", href: "/clients", icon: Building2 },
   { name: "Team", href: "/team", icon: Users },
   { name: "Reports", href: "/reports", icon: BarChart3 },
 ]
