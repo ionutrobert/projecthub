@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   ArrowDown,
   ArrowUp,
@@ -78,6 +79,7 @@ type TeamViewMode = "list" | "card"
 type TeamSortKey = "member" | "email" | "role" | "projects" | "tasks"
 
 export default function TeamPage() {
+  const router = useRouter()
   const { profile, impersonation, clearImpersonation, loading: userLoading } = useUser()
   const currentRole = profile?.role || "viewer"
   const actualRole = profile?.actual_role || currentRole
@@ -666,30 +668,33 @@ export default function TeamPage() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-                      {avatarOptions.map((option) => {
-                        const isSelected = newAvatarUrl === option
-                        return (
-                          <button
-                            key={option}
-                            type="button"
-                            className={cn(
-                              "rounded-lg border p-1 transition-colors",
-                              isSelected
-                                ? "border-primary bg-primary/10"
-                                : "border-border/70 hover:border-primary/40 hover:bg-accent/40",
-                            )}
-                            onClick={() => setNewAvatarUrl(option)}
-                            title="Select avatar"
-                          >
-                            <div
-                              className="h-10 w-10 rounded-md bg-cover bg-center"
-                              style={{ backgroundImage: `url(${option})` }}
-                              aria-label="Avatar option"
-                            />
-                          </button>
-                        )
-                      })}
+                    <div className="rounded-lg border border-border/60 bg-background/70 p-2">
+                      <div className="flex gap-2 overflow-x-auto pb-1">
+                        {avatarOptions.map((option, index) => {
+                          const isSelected = newAvatarUrl === option
+                          return (
+                            <button
+                              key={option}
+                              type="button"
+                              className={cn(
+                                "shrink-0 rounded-lg border p-1 transition-all",
+                                "focus:outline-none focus:ring-2 focus:ring-primary/40",
+                                isSelected
+                                  ? "border-primary bg-primary/10 shadow-sm"
+                                  : "border-border/70 hover:border-primary/40 hover:bg-accent/40",
+                              )}
+                              onClick={() => setNewAvatarUrl(option)}
+                              title={`Select avatar ${index + 1}`}
+                            >
+                              <div
+                                className="h-12 w-12 rounded-md bg-cover bg-center"
+                                style={{ backgroundImage: `url(${option})` }}
+                                aria-label={`Avatar option ${index + 1}`}
+                              />
+                            </button>
+                          )
+                        })}
+                      </div>
                     </div>
 
                     <p className="text-xs text-muted-foreground">
@@ -1016,7 +1021,11 @@ export default function TeamPage() {
                           const taskCount = taskCountByMember.get(member.id) || 0
 
                           return (
-                            <TableRow key={member.id}>
+                            <TableRow
+                              key={member.id}
+                              className="cursor-pointer"
+                              onClick={() => router.push(`/team/${member.id}`)}
+                            >
                               <TableCell className="py-2">
                                 <div className="flex items-center gap-2">
                                   <MemberAvatar name={member.name} email={member.email} userId={member.user_id || null} avatarUrl={member.avatar_url || null} sizeClass="h-8 w-8" textClass="text-[11px]" />
@@ -1027,6 +1036,7 @@ export default function TeamPage() {
                                         onChange={(event) =>
                                           setDraftNames((prev) => ({ ...prev, [member.id]: event.target.value }))
                                         }
+                                        onClick={(event) => event.stopPropagation()}
                                         className="h-8 w-44 max-w-full rounded-md border border-input bg-background px-2 text-xs"
                                       />
                                     ) : (
@@ -1046,6 +1056,7 @@ export default function TeamPage() {
                                   <select
                                     value={draftRole}
                                     onChange={(event) => setDraftRoles((prev) => ({ ...prev, [member.id]: event.target.value }))}
+                                    onClick={(event) => event.stopPropagation()}
                                     disabled={!canEdit}
                                     className="h-8 w-32 rounded-md border border-input bg-background px-2 text-xs disabled:cursor-not-allowed disabled:opacity-50"
                                   >
@@ -1060,7 +1071,7 @@ export default function TeamPage() {
                               <TableCell className="py-2 text-right text-sm">{projectCount}</TableCell>
                               <TableCell className="py-2 text-right text-sm">{taskCount}</TableCell>
                               <TableCell className="py-2">
-                                <div className="flex items-center justify-end gap-2">
+                                <div className="flex items-center justify-end gap-2" onClick={(event) => event.stopPropagation()}>
                                   {isAdmin && (
                                     <Button variant="outline" size="sm" className="h-8 px-2 text-xs" onClick={() => setPreviewMember(member)}>
                                       <Eye className="mr-1 h-3.5 w-3.5" />Preview
