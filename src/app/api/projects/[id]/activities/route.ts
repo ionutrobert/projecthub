@@ -164,7 +164,7 @@ export async function GET(
     return NextResponse.json({ error: activityResult.error }, { status: 500 })
   }
 
-  if (activityResult.data) {
+  if (activityResult.data && activityResult.data.length > 0) {
     const payload = activityResult.data.map<ActivityResponseItem>((row) => ({
       id: row.id,
       timestamp: row.created_at,
