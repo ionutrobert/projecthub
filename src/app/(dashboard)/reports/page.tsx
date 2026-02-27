@@ -1,12 +1,16 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import {
+  AlertCircle,
   BarChart3,
+  Calendar,
   CheckCircle2,
   Clock,
   Download,
   Loader2,
+  TrendingUp,
   Users,
 } from "lucide-react"
 
@@ -57,6 +61,8 @@ type Task = {
   status: "todo" | "in-progress" | "done"
   priority: "low" | "medium" | "high" | "urgent"
   due_date: string | null
+  assignee_member_id: string | null
+  project_id?: string
   created_at?: string
 }
 
@@ -72,6 +78,35 @@ type Client = {
 }
 
 type TimeRange = "7d" | "30d" | "90d" | "all"
+
+function getDaysUntil(dateStr: string | null): number | null {
+  if (!dateStr) return null
+  const target = new Date(dateStr)
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  target.setHours(0, 0, 0, 0)
+  const diff = target.getTime() - now.getTime()
+  return Math.ceil(diff / (1000 * 60 * 60 * 24))
+}
+
+function formatDaysUntil(dateStr: string | null): string {
+  const days = getDaysUntil(dateStr)
+  if (days === null) return "No date"
+  if (days < 0) return `${Math.abs(days)}d overdue`
+  if (days === 0) return "Today"
+  if (days === 1) return "Tomorrow"
+  return `in ${days}d`
+}
+
+function getUrgencyClass(dateStr: string | null): string {
+  const days = getDaysUntil(dateStr)
+  if (days === null) return "text-muted-foreground"
+  if (days < 0) return "text-red-600 dark:text-red-400 font-medium"
+  if (days === 0) return "text-orange-600 dark:text-orange-400 font-medium"
+  if (days <= 2) return "text-orange-500 dark:text-orange-400"
+  if (days <= 7) return "text-amber-500 dark:text-amber-400"
+  return "text-muted-foreground"
+}
 
 export default function ReportsPage() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -131,12 +166,13 @@ export default function ReportsPage() {
     if (timeRange === "all") return projects
 
     const now = new Date()
+    now.setHours(0, 0, 0, 0)
     const days = timeRange === "7d" ? 7 : timeRange === "30d" ? 30 : 90
-    const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+    const cutoff = new Date(now.getTime() + days * 24 * 60 * 60 * 1000)
 
     return projects.filter((project) => {
-      if (!project.created_at) return true
-      return new Date(project.created_at) >= cutoff
+      if (!project.deadline) return true
+      return new Date(project.deadline) <= cutoff
     })
   }, [projects, timeRange])
 
@@ -144,12 +180,13 @@ export default function ReportsPage() {
     if (timeRange === "all") return tasks
 
     const now = new Date()
+    now.setHours(0, 0, 0, 0)
     const days = timeRange === "7d" ? 7 : timeRange === "30d" ? 30 : 90
-    const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+    const cutoff = new Date(now.getTime() + days * 24 * 60 * 60 * 1000)
 
     return tasks.filter((task) => {
-      if (!task.created_at) return true
-      return new Date(task.created_at) >= cutoff
+      if (!task.due_date) return true
+      return new Date(task.due_date) <= cutoff
     })
   }, [tasks, timeRange])
 
@@ -221,13 +258,52 @@ export default function ReportsPage() {
       .slice(0, 5)
   }, [filteredProjects])
 
+  const upcomingTasks = useMemo(() => {
+    return [...filteredTasks]
+      .filter((task) => Boolean(task.due_date) && task.status !== "done")
+      .sort((a, b) => new Date(a.due_date || "").getTime() - new Date(b.due_date || "").getTime())
+      .slice(0, 5)
+  }, [filteredTasks])
+
   const overdueTasks = useMemo(() => {
     const now = new Date()
+    now.setHours(0, 0, 0, 0)
     return filteredTasks.filter((task) => {
       if (!task.due_date || task.status === "done") return false
-      return new Date(task.due_date) < now
+      const dueDate = new Date(task.due_date)
+      dueDate.setHours(0, 0, 0, 0)
+      return dueDate < now
     }).length
   }, [filteredTasks])
+
+  const teamWorkload = useMemo(() => {
+    const workload: Record<string, { total: number; todo: number; inProgress: number; done: number }> = {}
+    
+    members.forEach((member) => {
+      workload[member.id] = { total: 0, todo: 0, inProgress: 0, done: 0 }
+    })
+    
+    filteredTasks.forEach((task) => {
+      if (task.assignee_member_id && workload[task.assignee_member_id]) {
+        workload[task.assignee_member_id].total++
+        if (task.status === "todo") workload[task.assignee_member_id].todo++
+        else if (task.status === "in-progress") workload[task.assignee_member_id].inProgress++
+        else if (task.status === "done") workload[task.assignee_member_id].done++
+      }
+    })
+    
+    const memberWorkload = members.map((member) => ({
+      id: member.id,
+      name: member.name,
+      role: member.role,
+      ...workload[member.id],
+    }))
+    
+    return memberWorkload
+      .filter((m) => m.total > 0)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5)
+  }, [filteredTasks, members])
 
   const busyMembers = useMemo(() => {
     const roleCount = members.reduce<Record<string, number>>((acc, member) => {
@@ -265,6 +341,8 @@ export default function ReportsPage() {
       tasksByPriority: metrics.taskByPriority,
       projectsByStatus: metrics.projectByStatus,
       upcomingDeadlines: nextDeadlines.map(p => ({ name: p.name, deadline: p.deadline, status: p.status })),
+      upcomingTasks: upcomingTasks.map(t => ({ title: t.title, dueDate: t.due_date, status: t.status, priority: t.priority })),
+      teamWorkload: teamWorkload.map(m => ({ name: m.name, role: m.role, total: m.total, todo: m.todo, inProgress: m.inProgress, done: m.done })),
       teamRoles: Object.fromEntries(busyMembers),
     }
 
@@ -321,72 +399,85 @@ export default function ReportsPage() {
         </Card>
       ) : (
         <>
-          <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
-            <Card className="glass card-hover py-3">
-              <CardHeader className="pb-1">
-                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                  <BarChart3 className="h-3 w-3" /> Projects
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="text-2xl font-bold">{metrics.totalProjects}</div>
-                <p className="text-xs text-muted-foreground">
-                  {metrics.activeProjects} active
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="glass card-hover py-3">
-              <CardHeader className="pb-1">
-                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                  <Clock className="h-3 w-3" /> In Progress
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="text-2xl font-bold">{metrics.taskInProgress}</div>
-                <p className="text-xs text-muted-foreground">
-                  {metrics.taskCompletion}% done
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="glass card-hover py-3">
-              <CardHeader className="pb-1">
-                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3 w-3" /> Completed
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="text-2xl font-bold">{metrics.completionRate}%</div>
-                <p className="text-xs text-muted-foreground">
-                  {metrics.completedProjects} projects
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="glass card-hover py-3">
-              <CardHeader className="pb-1">
-                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                  <Users className="h-3 w-3" /> Team
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="text-2xl font-bold">{members.length}</div>
-                <p className="text-xs text-muted-foreground">
-                  {busyMembers.length} roles
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="glass card-hover py-3">
-              <CardHeader className="pb-1">
-                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                  <Users className="h-3 w-3" /> Clients
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="text-2xl font-bold">{clients.length}</div>
-                <p className="text-xs text-muted-foreground">
-                  {metrics.projectsWithClients} projects linked
-                </p>
-              </CardContent>
-            </Card>
+          <div className="grid gap-3 grid-cols-2 lg:grid-cols-2">
+            <Link href="/projects" className="block">
+              <Card className="glass card-hover py-3 h-full cursor-pointer hover:border-primary/50 transition-colors">
+                <CardHeader className="pb-1">
+                  <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                    <BarChart3 className="h-3 w-3" /> Projects
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="text-2xl font-bold">{metrics.totalProjects}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {metrics.activeProjects} active
+                  </p>
+                </CardContent>
+              </Card>
+            </Link>
+            <Link href="/projects?status=completed" className="block">
+              <Card className="glass card-hover py-3 h-full cursor-pointer hover:border-primary/50 transition-colors">
+                <CardHeader className="pb-1">
+                  <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3 w-3" /> Completion
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="text-2xl font-bold">{metrics.completionRate}%</div>
+                  <p className="text-xs text-muted-foreground">
+                    {metrics.completedProjects} projects
+                  </p>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
+
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-3">
+            <Link href="/team" className="block">
+              <Card className="glass card-hover py-3 h-full cursor-pointer hover:border-primary/50 transition-colors">
+                <CardHeader className="pb-1">
+                  <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                    <Users className="h-3 w-3" /> Team
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="text-2xl font-bold">{members.length}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {busyMembers.length} roles
+                  </p>
+                </CardContent>
+              </Card>
+            </Link>
+            <Link href="/clients" className="block">
+              <Card className="glass card-hover py-3 h-full cursor-pointer hover:border-primary/50 transition-colors">
+                <CardHeader className="pb-1">
+                  <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                    <Users className="h-3 w-3" /> Clients
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="text-2xl font-bold">{clients.length}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {metrics.projectsWithClients} linked
+                  </p>
+                </CardContent>
+              </Card>
+            </Link>
+            <Link href="/tasks?status=in-progress" className="block col-span-2 md:col-span-1 lg:col-span-1">
+              <Card className="glass card-hover py-3 h-full cursor-pointer hover:border-primary/50 transition-colors">
+                <CardHeader className="pb-1">
+                  <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                    <Clock className="h-3 w-3" /> Tasks Active
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="text-2xl font-bold">{metrics.taskInProgress}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {metrics.taskTodo} pending
+                  </p>
+                </CardContent>
+              </Card>
+            </Link>
           </div>
 
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
@@ -532,21 +623,27 @@ export default function ReportsPage() {
             </Card>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
             <Card className="glass">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Upcoming Deadlines</CardTitle>
+              <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                <CardTitle className="text-sm flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5" /> Upcoming Deadlines
+                </CardTitle>
+                <Link href="/projects" className="text-xs text-primary hover:underline">
+                  View all
+                </Link>
               </CardHeader>
               <CardContent className="space-y-2">
                 {nextDeadlines.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No upcoming deadlines.</p>
+                  <p className="text-sm text-muted-foreground py-4 text-center">No upcoming deadlines.</p>
                 ) : (
                   nextDeadlines.map((project) => (
-                    <div
+                    <Link
                       key={project.id}
-                      className="flex items-center justify-between rounded border border-border/60 px-2 py-1.5"
+                      href={`/projects/${project.id}`}
+                      className="flex items-center justify-between rounded border border-border/60 px-2 py-1.5 hover:border-primary/50 transition-colors"
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
                         <Badge
                           variant={
                             project.status === "active"
@@ -555,14 +652,61 @@ export default function ReportsPage() {
                               ? "secondary"
                               : "outline"
                           }
-                          className="text-[10px] px-1.5 py-0 capitalize"
+                          className="text-[10px] px-1.5 py-0 capitalize shrink-0"
                         >
                           {project.status}
                         </Badge>
-                        <span className="text-sm truncate max-w-[120px]">{project.name}</span>
+                        <span className="text-sm truncate">{project.name}</span>
                       </div>
-                      <span className="text-xs text-muted-foreground whitespace-nowrap">{project.deadline}</span>
-                    </div>
+                      <span className={`text-xs whitespace-nowrap ml-2 ${getUrgencyClass(project.deadline)}`}>
+                        {formatDaysUntil(project.deadline)}
+                      </span>
+                    </Link>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="glass">
+              <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                <CardTitle className="text-sm flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5" /> Tasks Due Soon
+                </CardTitle>
+                <Link href="/tasks" className="text-xs text-primary hover:underline">
+                  View all
+                </Link>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {upcomingTasks.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">No tasks due soon.</p>
+                ) : (
+                  upcomingTasks.map((task) => (
+                    <Link
+                      key={task.id}
+                      href={`/tasks?status=in-progress`}
+                      className="flex items-center justify-between rounded border border-border/60 px-2 py-1.5 hover:border-primary/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Badge
+                          variant={
+                            task.priority === "urgent"
+                              ? "destructive"
+                              : task.priority === "high"
+                              ? "destructive"
+                              : task.priority === "medium"
+                              ? "outline"
+                              : "secondary"
+                          }
+                          className="text-[10px] px-1.5 py-0 capitalize shrink-0"
+                        >
+                          {task.priority}
+                        </Badge>
+                        <span className="text-sm truncate">{task.title}</span>
+                      </div>
+                      <span className={`text-xs whitespace-nowrap ml-2 ${getUrgencyClass(task.due_date)}`}>
+                        {formatDaysUntil(task.due_date)}
+                      </span>
+                    </Link>
                   ))
                 )}
               </CardContent>
@@ -570,22 +714,167 @@ export default function ReportsPage() {
 
             <Card className="glass">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Team Roles</CardTitle>
+                <CardTitle className="text-sm flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5" /> Team Workload
+                </CardTitle>
+                <Link href="/team" className="text-xs text-primary hover:underline">
+                  View all
+                </Link>
               </CardHeader>
               <CardContent className="space-y-2">
-                {busyMembers.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No team members yet.</p>
+                {teamWorkload.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">No assigned tasks.</p>
                 ) : (
-                  busyMembers.map(([role, count]) => (
-                    <div
-                      key={role}
-                      className="flex items-center justify-between rounded border border-border/60 px-2 py-1.5"
+                  teamWorkload.map((member) => (
+                    <Link
+                      key={member.id}
+                      href={`/team/${member.id}`}
+                      className="rounded border border-border/60 px-2 py-1.5 hover:border-primary/50 transition-colors block"
                     >
-                      <span className="text-sm capitalize truncate">{role}</span>
-                      <Badge variant="outline" className="text-xs">{count}</Badge>
-                    </div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm truncate font-medium">{member.name}</span>
+                        <span className="text-xs text-muted-foreground">{member.role}</span>
+                      </div>
+                      <div className="flex gap-1.5 text-xs">
+                        <span className="text-gray-500">{member.todo} todo</span>
+                        <span className="text-blue-500">{member.inProgress} active</span>
+                        <span className="text-green-500">{member.done} done</span>
+                        <span className="ml-auto font-medium">{member.total} total</span>
+                      </div>
+                    </Link>
                   ))
                 )}
+              </CardContent>
+            </Card>
+
+            <Card className="glass">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-1.5">
+                  <AlertCircle className="h-3.5 w-3.5 text-red-500" /> Overdue Items
+                </CardTitle>
+                <Link href="/tasks?filter=overdue" className="text-xs text-primary hover:underline">
+                  View all
+                </Link>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Overdue Projects</span>
+                  <span className="font-semibold text-red-500">
+                    {nextDeadlines.filter(p => {
+                      const days = getDaysUntil(p.deadline)
+                      return days !== null && days < 0
+                    }).length}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Overdue Tasks</span>
+                  <span className="font-semibold text-red-500">{overdueTasks}</span>
+                </div>
+                <div className="border-t pt-2 mt-2">
+                  <p className="text-xs text-muted-foreground mb-2">Needs Attention</p>
+                  {overdueTasks > 0 || nextDeadlines.filter(p => {
+                    const days = getDaysUntil(p.deadline)
+                    return days !== null && days < 0
+                  }).length > 0 ? (
+                    <div className="space-y-1.5">
+                      {nextDeadlines
+                        .filter(p => {
+                          const days = getDaysUntil(p.deadline)
+                          return days !== null && days < 0
+                        })
+                        .slice(0, 2)
+                        .map(p => (
+                          <div key={p.id} className="text-xs text-red-500 truncate">
+                            • {p.name} ({formatDaysUntil(p.deadline)})
+                          </div>
+                        ))}
+                      {filteredTasks
+                        .filter(t => {
+                          if (!t.due_date || t.status === "done") return false
+                          const days = getDaysUntil(t.due_date)
+                          return days !== null && days < 0
+                        })
+                        .slice(0, 2)
+                        .map(t => (
+                          <div key={t.id} className="text-xs text-red-500 truncate">
+                            • {t.title} ({formatDaysUntil(t.due_date)})
+                          </div>
+                        ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-green-500">All caught up!</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <Card className="glass">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-1.5">
+                  <TrendingUp className="h-3.5 w-3.5" /> Project Trends
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Active Projects</span>
+                  <span className="font-semibold">{metrics.activeProjects}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">On Hold</span>
+                  <span className="font-semibold text-amber-500">{metrics.onHoldProjects}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Completed</span>
+                  <span className="font-semibold text-green-500">{metrics.completedProjects}</span>
+                </div>
+                <div className="border-t pt-2 mt-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Completion Rate</span>
+                    <span className="font-bold text-lg">{metrics.completionRate}%</span>
+                  </div>
+                  <div className="w-full bg-secondary rounded-full h-2 mt-1">
+                    <div
+                      className="bg-green-500 h-2 rounded-full transition-all"
+                      style={{ width: `${metrics.completionRate}%` }}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="glass">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-1.5">
+                  <AlertCircle className="h-3.5 w-3.5" /> Task Health
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Total Tasks</span>
+                  <span className="font-semibold">{filteredTasks.length}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Overdue</span>
+                  <span className="font-semibold text-red-500">{overdueTasks}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">In Progress</span>
+                  <span className="font-semibold text-blue-500">{metrics.taskInProgress}</span>
+                </div>
+                <div className="border-t pt-2 mt-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Task Completion</span>
+                    <span className="font-bold text-lg">{metrics.taskCompletion}%</span>
+                  </div>
+                  <div className="w-full bg-secondary rounded-full h-2 mt-1">
+                    <div
+                      className="bg-blue-500 h-2 rounded-full transition-all"
+                      style={{ width: `${metrics.taskCompletion}%` }}
+                    />
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
