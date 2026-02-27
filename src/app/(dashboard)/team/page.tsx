@@ -257,6 +257,7 @@ export default function TeamPage() {
 
   const isPc = viewportWidth >= 1280
   const listPageSize = isPc ? 9 : 10
+  const cardBaseCount = isPc && teamView === "card" ? 12 : 10
   const listTotalPages = Math.max(1, Math.ceil(sortedMembers.length / listPageSize))
   const pagedListMembers = useMemo(() => {
     const start = (listPage - 1) * listPageSize
@@ -269,8 +270,8 @@ export default function TeamPage() {
 
   useEffect(() => {
     setListPage(1)
-    setCardVisibleCount(10)
-  }, [search, roleFilter, sortKey, sortDirection, teamView])
+    setCardVisibleCount(cardBaseCount)
+  }, [search, roleFilter, sortKey, sortDirection, teamView, cardBaseCount])
 
   useEffect(() => {
     setListPage((current) => Math.min(current, listTotalPages))
