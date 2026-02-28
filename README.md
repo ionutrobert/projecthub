@@ -1,4 +1,4 @@
-# ProjectHub
+# ProjectHub 
 
 ProjectHub is a small SaaS-style project dashboard built with Next.js and Supabase.
 
