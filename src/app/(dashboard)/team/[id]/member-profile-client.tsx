@@ -606,23 +606,17 @@ export default function TeamMemberProfileClient({
                             Open sign-in history
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="sm:max-w-3xl flex flex-col p-0">
-                          <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-6 py-4">
+                        <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+                          <div className="shrink-0 flex items-center justify-between border-b bg-background px-6 py-4">
                             <div>
                               <DialogTitle>Sign-in history</DialogTitle>
                               <DialogDescription>
                                 Login and session activity for {member.email || member.name}.
                               </DialogDescription>
                             </div>
-                            <DialogClose asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                                <X className="h-4 w-4" />
-                                <span className="sr-only">Close</span>
-                              </Button>
-                            </DialogClose>
                           </div>
 
-                          <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-2">
+                          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2 min-h-0">
                             {authActivityMissingTable ? (
                               <p className="text-sm text-muted-foreground">
                                 Auth activity table is not set up yet. Run `sql/migrate_auth_activity.sql`.
@@ -658,6 +652,15 @@ export default function TeamMemberProfileClient({
                                 </Card>
                               ))
                             )}
+                          </div>
+
+                          <div className="shrink-0 flex items-center justify-end border-t bg-background px-6 py-4">
+                            <DialogClose asChild>
+                              <Button variant="outline" size="sm">
+                                <X className="mr-2 h-4 w-4" />
+                                Close
+                              </Button>
+                            </DialogClose>
                           </div>
                         </DialogContent>
                       </Dialog>
