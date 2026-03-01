@@ -1,6 +1,8 @@
 -- =====================================================
 -- PROJECTHUB DATABASE SCHEMA
--- Run this in Supabase SQL Editor
+-- This file contains all tables, RLS policies, indexes, 
+-- and triggers required for a fresh ProjectHub installation.
+-- Run this once in the Supabase SQL Editor.
 -- =====================================================
 
 -- =====================================================
@@ -10,6 +12,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT,
   full_name TEXT,
+  -- SYSTEM PERMISSIONS: 'admin', 'member', 'viewer'
   role TEXT DEFAULT 'viewer' CHECK (role IN ('admin', 'member', 'viewer')),
   avatar_url TEXT,
   theme_preference TEXT DEFAULT 'dark' CHECK (theme_preference IN ('light', 'dark')),
@@ -51,7 +54,8 @@ CREATE TABLE IF NOT EXISTS members (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   email TEXT,
-  role TEXT DEFAULT 'developer', -- developer, designer, PM, accountant, etc.
+  -- JOB TITLE: e.g., 'Developer', 'Designer' (Display only)
+  role TEXT DEFAULT 'developer',
   user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -64,8 +68,6 @@ CREATE POLICY "Authenticated users can view members" ON members
   FOR SELECT TO authenticated
   USING (true);
 
-DROP POLICY IF EXISTS "Admins can insert members" ON members;
-DROP POLICY IF EXISTS "Admins and members can insert members" ON members;
 CREATE POLICY "Admins and members can insert members" ON members
   FOR INSERT TO authenticated
   WITH CHECK (
@@ -75,8 +77,6 @@ CREATE POLICY "Admins and members can insert members" ON members
     )
   );
 
-DROP POLICY IF EXISTS "Admins can update members" ON members;
-DROP POLICY IF EXISTS "Admins and members can update members" ON members;
 CREATE POLICY "Admins and members can update members" ON members
   FOR UPDATE TO authenticated
   USING (
@@ -199,7 +199,7 @@ CREATE POLICY "Admins can delete projects" ON projects
   );
 
 -- =====================================================
--- 3.1 PROJECT_MEMBERS (many-to-many: projects ↔ members)
+-- 5. PROJECT_MEMBERS (many-to-many: projects ↔ members)
 -- =====================================================
 CREATE TABLE IF NOT EXISTS project_members (
   project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
@@ -211,12 +211,10 @@ CREATE TABLE IF NOT EXISTS project_members (
 -- Enable RLS
 ALTER TABLE project_members ENABLE ROW LEVEL SECURITY;
 
--- RLS: authenticated can view
 CREATE POLICY "Authenticated users can view project_members" ON project_members
   FOR SELECT TO authenticated
   USING (true);
 
--- RLS: admins and members can assign
 CREATE POLICY "Admins and members can insert project_members" ON project_members
   FOR INSERT TO authenticated
   WITH CHECK (
@@ -236,7 +234,7 @@ CREATE POLICY "Admins and members can delete project_members" ON project_members
   );
 
 -- =====================================================
--- 3.2 PROJECT_STARS (per-user starred projects)
+-- 6. PROJECT_STARS (per-user starred projects)
 -- =====================================================
 CREATE TABLE IF NOT EXISTS project_stars (
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
@@ -248,18 +246,20 @@ CREATE TABLE IF NOT EXISTS project_stars (
 -- Enable RLS
 ALTER TABLE project_stars ENABLE ROW LEVEL SECURITY;
 
--- RLS: users can view their own stars
 CREATE POLICY "Users can view own project_stars" ON project_stars
   FOR SELECT TO authenticated
   USING (user_id = auth.uid());
 
--- RLS: users can star projects for themselves
 CREATE POLICY "Users can insert own project_stars" ON project_stars
   FOR INSERT TO authenticated
   WITH CHECK (user_id = auth.uid());
 
+CREATE POLICY "Users can delete own project_stars" ON project_stars
+  FOR DELETE TO authenticated
+  USING (user_id = auth.uid());
+
 -- =====================================================
--- 3.3 AUTH_ACTIVITY (login/session history)
+-- 7. AUTH_ACTIVITY (login/session history)
 -- =====================================================
 CREATE TABLE IF NOT EXISTS auth_activity (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -274,11 +274,8 @@ CREATE TABLE IF NOT EXISTS auth_activity (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS auth_activity_user_created_idx
-  ON auth_activity (user_id, created_at DESC);
-
-CREATE INDEX IF NOT EXISTS auth_activity_email_created_idx
-  ON auth_activity (email, created_at DESC);
+CREATE INDEX IF NOT EXISTS auth_activity_user_created_idx ON auth_activity (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS auth_activity_email_created_idx ON auth_activity (email, created_at DESC);
 
 ALTER TABLE auth_activity ENABLE ROW LEVEL SECURITY;
 
@@ -299,13 +296,8 @@ CREATE POLICY "Users can insert own auth activity" ON auth_activity
   FOR INSERT TO authenticated
   WITH CHECK (user_id = auth.uid());
 
--- RLS: users can remove their own stars
-CREATE POLICY "Users can delete own project_stars" ON project_stars
-  FOR DELETE TO authenticated
-  USING (user_id = auth.uid());
-
 -- =====================================================
--- 3.4 PROJECT_ACTIVITIES (project audit timeline)
+-- 8. PROJECT_ACTIVITIES (project audit timeline)
 -- =====================================================
 CREATE TABLE IF NOT EXISTS project_activities (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -330,11 +322,8 @@ CREATE TABLE IF NOT EXISTS project_activities (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS project_activities_project_created_idx
-  ON project_activities (project_id, created_at DESC);
-
-CREATE INDEX IF NOT EXISTS project_activities_entity_idx
-  ON project_activities (entity_type, entity_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS project_activities_project_created_idx ON project_activities (project_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS project_activities_entity_idx ON project_activities (entity_type, entity_id, created_at DESC);
 
 ALTER TABLE project_activities ENABLE ROW LEVEL SECURITY;
 
@@ -352,7 +341,7 @@ CREATE POLICY "Admins and members can insert project activities" ON project_acti
   );
 
 -- =====================================================
--- 3.5 TASKS (project task tracking)
+-- 9. TASKS (project task tracking)
 -- =====================================================
 CREATE TABLE IF NOT EXISTS tasks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -402,7 +391,7 @@ CREATE POLICY "Admins and members can delete tasks" ON tasks
   );
 
 -- =====================================================
--- 4. TRIGGER TO CREATE PROFILE ON SIGNUP
+-- 10. TRIGGER TO CREATE PROFILE ON SIGNUP
 -- =====================================================
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
@@ -412,80 +401,21 @@ BEGIN
     NEW.id,
     NEW.email,
     NEW.raw_user_meta_data->>'full_name',
-    'viewer' -- Default role
+    'viewer'
   );
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Create trigger
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- =====================================================
--- 5. SEED DEMO DATA
+-- 11. INDEXES FOR PERFORMANCE
 -- =====================================================
-
--- NOTE:
--- Keep production schemas clean by managing demo data via:
---   sql/seed_dummy_data.sql
---   sql/reset_dummy_data.sql
-
--- =====================================================
--- 6. VERIFICATION QUERIES
--- =====================================================
-
--- Check tables created
--- SELECT table_name FROM information_schema.tables 
--- WHERE table_schema = 'public';
-
--- View current data
--- SELECT * FROM profiles;
--- SELECT * FROM members;
--- SELECT * FROM projects;
-
--- =====================================================
--- 7. MIGRATION FOR EXISTING USERS (run manually if needed)
--- =====================================================
-
--- Add theme columns to existing profiles table (if not already added via table recreation)
--- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS theme_preference TEXT DEFAULT 'dark' CHECK (theme_preference IN ('light', 'dark'));
--- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS accent_color TEXT DEFAULT '#8b5cf6';
--- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS theme_gradient BOOLEAN DEFAULT true;
--- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS micro_animations BOOLEAN DEFAULT true;
--- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS nav_style TEXT DEFAULT 'sidebar' CHECK (nav_style IN ('top', 'sidebar'));
--- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS dashboard_layout JSONB;
--- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS dashboard_layout_mobile JSONB;
-
--- Projects table compatibility migrations (if table already existed before latest schema):
--- ALTER TABLE projects ADD COLUMN IF NOT EXISTS client_name TEXT;
--- ALTER TABLE projects ADD COLUMN IF NOT EXISTS start_date DATE;
--- ALTER TABLE projects ADD COLUMN IF NOT EXISTS labels TEXT[] DEFAULT ARRAY[]::TEXT[];
--- ALTER TABLE projects DROP CONSTRAINT IF EXISTS projects_status_check;
--- ALTER TABLE projects ADD CONSTRAINT projects_status_check CHECK (status IN ('active', 'in-progress', 'on-hold', 'completed', 'closed'));
-
--- Create clients table if it does not exist yet:
--- CREATE TABLE IF NOT EXISTS clients (
---   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
---   name TEXT NOT NULL,
---   contact_email TEXT,
---   contact_phone TEXT,
---   website TEXT,
---   company TEXT,
---   notes TEXT,
---   created_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
---   created_at TIMESTAMPTZ DEFAULT NOW(),
---   updated_at TIMESTAMPTZ DEFAULT NOW()
--- );
-
--- Update existing users to have a default nav style based on screen size preference (defaulting to sidebar)
--- UPDATE profiles SET nav_style = 'sidebar' WHERE nav_style IS NULL;
-
--- =====================================================
--- 8. INDEXES FOR PERFORMANCE
--- =====================================================
-
 CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);
 CREATE INDEX IF NOT EXISTS idx_profiles_role ON profiles(role);
 CREATE INDEX IF NOT EXISTS idx_projects_member ON projects(member_id);

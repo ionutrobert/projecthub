@@ -89,6 +89,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [accentColor, setAccentColorState] = useState<string>(getInitialAccentColor)
   const [gradientEnabled, setGradientEnabledState] = useState(getInitialGradientEnabled)
   const [microAnimations, setMicroAnimationsState] = useState(getInitialMicroAnimations)
+  const [hasInitializedFromServer, setHasInitializedFromServer] = useState(false)
 
   const supabase = useMemo(() => {
     if (typeof window === "undefined") return null
@@ -184,30 +185,60 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    if (!mounted || !profile) return
+    if (!mounted || !profile || hasInitializedFromServer) return
+
+    // Mark as initialized (this extra render is acceptable)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHasInitializedFromServer(true)
 
     const updates: Record<string, unknown> = {}
 
-    if (!profile.theme_preference) {
+    // Apply server preferences if they exist and differ from current
+    if (profile.theme_preference && profile.theme_preference !== theme) {
+      setThemeState(profile.theme_preference as Theme)
+      if (typeof window !== "undefined") {
+        localStorage.setItem("projecthub-theme", profile.theme_preference)
+        document.documentElement.classList.remove("light", "dark")
+        document.documentElement.classList.add(profile.theme_preference as Theme)
+      }
+    } else if (!profile.theme_preference) {
       updates.theme_preference = theme
     }
 
-    if (!profile.accent_color) {
+    if (profile.accent_color && profile.accent_color !== accentColor) {
+      setAccentColorState(profile.accent_color)
+      if (typeof window !== "undefined") {
+        localStorage.setItem("projecthub-accent", profile.accent_color)
+        applyAccentColor(profile.accent_color)
+      }
+    } else if (!profile.accent_color) {
       updates.accent_color = accentColor
     }
 
-    if (profile.theme_gradient === null || profile.theme_gradient === undefined) {
+    if (profile.theme_gradient !== null && profile.theme_gradient !== undefined && profile.theme_gradient !== gradientEnabled) {
+      setGradientEnabledState(profile.theme_gradient)
+      if (typeof window !== "undefined") {
+        localStorage.setItem("projecthub-gradient", String(profile.theme_gradient))
+        document.documentElement.dataset.gradient = profile.theme_gradient ? "true" : "false"
+      }
+    } else if (profile.theme_gradient === null || profile.theme_gradient === undefined) {
       updates.theme_gradient = gradientEnabled
     }
 
-    if (profile.micro_animations === null || profile.micro_animations === undefined) {
+    if (profile.micro_animations !== null && profile.micro_animations !== undefined && profile.micro_animations !== microAnimations) {
+      setMicroAnimationsState(profile.micro_animations)
+      if (typeof window !== "undefined") {
+        localStorage.setItem("projecthub-micro", String(profile.micro_animations))
+        document.documentElement.dataset.micro = profile.micro_animations ? "true" : "false"
+      }
+    } else if (profile.micro_animations === null || profile.micro_animations === undefined) {
       updates.micro_animations = microAnimations
     }
 
     if (Object.keys(updates).length > 0) {
       void persistToDB(updates)
     }
-  }, [profile, mounted, theme, accentColor, gradientEnabled, microAnimations, persistToDB])
+  }, [profile, mounted, theme, accentColor, gradientEnabled, microAnimations, applyAccentColor, persistToDB, hasInitializedFromServer])
 
   return (
     <ThemeContext.Provider

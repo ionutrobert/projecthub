@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import { createClient } from "@/lib/supabase/server"
 import { getRoleContext, getEffectiveProfileId } from "@/lib/server-authz"
+import { revalidateTag } from "next/cache"
 
 const updateProfileSchema = z.object({
   full_name: z.string().max(120).nullable(),
@@ -62,14 +63,29 @@ export async function PUT(request: NextRequest) {
 
   const targetProfileId = await getEffectiveProfileId(supabase, user.id)
 
-  const { error } = await supabase
+  const updatePayload = {
+    ...parsed.data,
+    updated_at: new Date().toISOString(),
+  }
+
+  const { data, error } = await supabase
     .from("profiles")
-    .update(parsed.data)
+    .update(updatePayload)
     .eq("id", targetProfileId)
+    .select()
+    .single()
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  if (!data) {
+    return NextResponse.json({ error: "Profile not found" }, { status: 404 })
+  }
+
+  // Invalidate caches to reflect changes across app
+  revalidateTag("dashboard", "max")
+  revalidateTag("team", "max")
 
   return NextResponse.json({ success: true })
 }

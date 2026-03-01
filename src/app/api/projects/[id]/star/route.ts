@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { revalidateTag } from "next/cache"
 
 export async function POST(
   request: NextRequest,
@@ -17,8 +18,19 @@ export async function POST(
     .insert({ user_id: user.id, project_id: id })
 
   if (error) {
+    // Handle unique violation for duplicate star
+    if (error.code === "23505") {
+      return NextResponse.json(
+        { error: "Already starred" },
+        { status: 409 }
+      )
+    }
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  // Invalidate relevant caches
+  revalidateTag("projects", "max")
+  revalidateTag("dashboard", "max")
 
   return NextResponse.json({ success: true }, { status: 201 })
 }
@@ -43,6 +55,10 @@ export async function DELETE(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  // Invalidate relevant caches
+  revalidateTag("projects", "max")
+  revalidateTag("dashboard", "max")
 
   return NextResponse.json({ success: true })
 }

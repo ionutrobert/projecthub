@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Building2, Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react"
 
 import { useUser } from "@/components/user-provider"
@@ -73,11 +73,17 @@ export default function ClientsPage() {
   const [editing, setEditing] = useState<Client | null>(null)
   const [form, setForm] = useState<ClientForm>(EMPTY_FORM)
 
-  const loadClients = async () => {
+  const loadClients = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch("/api/clients", { cache: "no-store" })
+      const params = new URLSearchParams();
+      if (search.trim()) {
+        params.append("search", search.trim());
+      }
+      const response = await fetch(`/api/clients?${params.toString()}`, {
+        next: { revalidate: 30 },
+      });
       const data = await response.json()
       if (!response.ok) {
         throw new Error(data?.error || "Failed to load clients")
@@ -89,21 +95,16 @@ export default function ClientsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [search])
 
   useEffect(() => {
     void loadClients()
-  }, [])
+  }, [loadClients])
 
   const filteredClients = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    if (!query) return clients
-    return clients.filter((client) => {
-      return [client.name, client.company, client.contact_email, client.contact_phone]
-        .filter(Boolean)
-        .some((value) => value?.toLowerCase().includes(query))
-    })
-  }, [clients, search])
+    // Server already performs search filtering
+    return clients
+  }, [clients])
 
   const openCreate = () => {
     setEditing(null)

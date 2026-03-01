@@ -70,26 +70,18 @@ NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 ```
 
-3. Apply database schema:
+### Database Setup
 
-- Run `supabase-schema.sql` in Supabase SQL Editor
-- If needed for older data, run `sql/migrate_project_statuses.sql`
+1. Create a new Supabase project.
+2. Open the **SQL Editor** in the Supabase Dashboard.
+3. Copy and run the contents of [supabase-schema.sql] to create all tables and RLS policies.
+4. (Optional) Run [sql/seed_dummy_data.sql] to populate the database with demo projects, members, clients, and activities.
+5. (Optional) Run [sql/reset_dummy_data.sql] if you want to remove the [DEMO] data later.
 
-4. Enable OAuth (optional):
+6. Enable OAuth (optional):
 
-- Go to **Authentication → Providers** in Supabase
-- Enable Google and/or GitHub
-- Enter OAuth credentials from Google Cloud Console / GitHub Developer Settings
-
-5. (Optional) load sample data:
-
-```bash
-# seed sample records
-sql/seed_dummy_data.sql
-
-# remove seeded records
-sql/reset_dummy_data.sql
-```
+- Configure OAuth providers in Supabase Auth settings.
+- Add provider-specific environment variables to `.env.local`.
 
 6. Run locally:
 

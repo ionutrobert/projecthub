@@ -1,13 +1,26 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { LayoutDashboard, FolderKanban, Building2, CheckSquare, Settings, Users, BarChart3, LogOut, X, PanelLeftClose, PanelLeft, ChevronDown } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { useUser } from "@/components/user-provider"
-import { useNavStyle } from "@/components/nav-style-provider"
-import UserAvatar from "@/components/user-avatar"
-import { useState, useRef, useEffect } from "react"
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard,
+  FolderKanban,
+  Building2,
+  CheckSquare,
+  Settings,
+  Users,
+  BarChart3,
+  LogOut,
+  X,
+  PanelLeftClose,
+  PanelLeft,
+  ChevronDown,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useUser } from "@/components/user-provider";
+import { useNavStyle } from "@/components/nav-style-provider";
+import UserAvatar from "@/components/user-avatar";
+import { useState, useRef, useEffect } from "react";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -16,37 +29,46 @@ const navigation = [
   { name: "Clients", href: "/clients", icon: Building2 },
   { name: "Team", href: "/team", icon: Users },
   { name: "Reports", href: "/reports", icon: BarChart3 },
-]
+];
 
 export function Sidebar() {
-  const pathname = usePathname()
-  const { profile, user, impersonation, loading, signOut } = useUser()
-  const { mobileMenuOpen, setMobileMenuOpen, sidebarCollapsed, setSidebarCollapsed } = useNavStyle()
-  const [userMenuOpen, setUserMenuOpen] = useState(false)
-  const userMenuRef = useRef<HTMLDivElement>(null)
+  const pathname = usePathname();
+  const { profile, user, impersonation, loading, signOut } = useUser();
+  const {
+    mobileMenuOpen,
+    setMobileMenuOpen,
+    sidebarCollapsed,
+    setSidebarCollapsed,
+  } = useNavStyle();
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   const handleSignOut = async () => {
-    await signOut()
-  }
+    await signOut();
+  };
 
   const toggleCollapse = () => {
-    setSidebarCollapsed(!sidebarCollapsed)
-  }
+    setSidebarCollapsed(!sidebarCollapsed);
+  };
 
   // Close user menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
-        setUserMenuOpen(false)
+      if (
+        userMenuRef.current &&
+        !userMenuRef.current.contains(event.target as Node)
+      ) {
+        setUserMenuOpen(false);
       }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-  const avatarUser = impersonation ? null : user
-  const displayEmail = profile?.email || user?.email || ""
-  const displayName = profile?.full_name || displayEmail.split("@")[0] || "User"
+  const avatarUser = impersonation ? null : user;
+  const displayEmail = profile?.email || user?.email || "";
+  const displayName =
+    profile?.full_name || displayEmail.split("@")[0] || "User";
 
   return (
     <>
@@ -67,15 +89,23 @@ export function Sidebar() {
         className={cn(
           "fixed lg:relative inset-y-0 left-0 z-40 flex flex-col border-r bg-card sidebar-transition",
           sidebarCollapsed ? "w-16" : "w-64",
-          mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          mobileMenuOpen
+            ? "translate-x-0"
+            : "-translate-x-full lg:translate-x-0",
         )}
-        aria-hidden={!mobileMenuOpen && typeof window !== "undefined" && window.innerWidth < 1024}
+        aria-hidden={
+          !mobileMenuOpen &&
+          typeof window !== "undefined" &&
+          window.innerWidth < 1024
+        }
       >
         {/* Header with collapse button */}
-        <div className={cn(
-          "flex h-16 items-center border-b border-border pt-2 lg:pt-0",
-          sidebarCollapsed ? "justify-center px-0" : "justify-between px-2"
-        )}>
+        <div
+          className={cn(
+            "flex h-16 items-center border-b border-border pt-2 lg:pt-0",
+            sidebarCollapsed ? "justify-center px-0" : "justify-between px-2",
+          )}
+        >
           {/* Logo - show when expanded, hide when collapsed */}
           {!sidebarCollapsed && (
             <div className="flex items-center gap-2 min-w-0 pl-2">
@@ -86,25 +116,33 @@ export function Sidebar() {
               <span className="text-lg font-bold truncate">ProjectHub</span>
             </div>
           )}
-          
+
           {/* Right side controls */}
-          <div className={cn(
-            "flex items-center gap-1 shrink-0",
-            sidebarCollapsed ? "" : "pr-2"
-          )}>
+          <div
+            className={cn(
+              "flex items-center gap-1 shrink-0",
+              sidebarCollapsed ? "" : "pr-2",
+            )}
+          >
             {/* Collapse/Expand button - show on xl+ (when collapse is available) */}
             <button
               onClick={toggleCollapse}
               className={cn(
                 "p-1.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary",
-                sidebarCollapsed ? "flex" : "hidden xl:flex"
+                sidebarCollapsed ? "flex" : "hidden xl:flex",
               )}
               title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-label={
+                sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
+              }
             >
-              {sidebarCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+              {sidebarCollapsed ? (
+                <PanelLeft className="h-4 w-4" />
+              ) : (
+                <PanelLeftClose className="h-4 w-4" />
+              )}
             </button>
-            
+
             {/* Mobile close button */}
             <button
               onClick={() => setMobileMenuOpen(false)}
@@ -119,7 +157,7 @@ export function Sidebar() {
         {/* Navigation */}
         <nav className="flex-1 space-y-1 px-2 py-4" aria-label="Primary">
           {navigation.map((item) => {
-            const isActive = pathname === item.href
+            const isActive = pathname === item.href;
             return (
               <Link
                 key={item.name}
@@ -130,7 +168,7 @@ export function Sidebar() {
                   isActive
                     ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground",
-                  sidebarCollapsed && "justify-center px-2"
+                  sidebarCollapsed && "justify-center px-2",
                 )}
                 aria-current={isActive ? "page" : undefined}
                 title={sidebarCollapsed ? item.name : undefined}
@@ -138,7 +176,7 @@ export function Sidebar() {
                 <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
                 {!sidebarCollapsed && <span>{item.name}</span>}
               </Link>
-            )
+            );
           })}
         </nav>
 
@@ -152,14 +190,14 @@ export function Sidebar() {
               pathname === "/settings"
                 ? "bg-primary/10 text-primary"
                 : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground",
-              sidebarCollapsed && "justify-center px-2"
+              sidebarCollapsed && "justify-center px-2",
             )}
             title={sidebarCollapsed ? "Settings" : undefined}
           >
             <Settings className="h-5 w-5 shrink-0" />
             {!sidebarCollapsed && <span>Settings</span>}
           </Link>
-          
+
           {/* User with dropdown menu */}
           <div className="relative mt-1" ref={userMenuRef}>
             <button
@@ -167,36 +205,68 @@ export function Sidebar() {
               className={cn(
                 "flex items-center gap-2 w-full rounded-xl px-2 py-2 text-sm font-medium transition-all",
                 "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground",
-                sidebarCollapsed ? "justify-center" : "justify-start"
+                sidebarCollapsed ? "justify-center" : "justify-start",
               )}
               title={sidebarCollapsed ? displayName : undefined}
             >
               {loading ? (
-                <div className="h-8 w-8 shrink-0 rounded-full bg-muted animate-pulse" aria-hidden="true" />
+                <div
+                  className="h-8 w-8 shrink-0 rounded-full bg-muted animate-pulse"
+                  aria-hidden="true"
+                />
               ) : (
-                <UserAvatar profile={profile} user={avatarUser} sizeClass="h-8 w-8" textClass="text-xs" />
+                <UserAvatar
+                  profile={profile}
+                  user={avatarUser}
+                  sizeClass="h-8 w-8"
+                  textClass="text-xs"
+                />
               )}
               {!sidebarCollapsed && (
                 <>
                   <div className="flex-1 overflow-hidden min-w-0 text-left">
-                    <p className="truncate text-sm font-medium">{displayName}</p>
+                    <p className="truncate text-sm font-medium">
+                      {displayName}
+                    </p>
                     <p className="truncate text-xs text-muted-foreground capitalize">
-                      {loading ? "Loading role..." : profile?.role || "No role"}
+                      {loading
+                        ? "Loading role..."
+                        : profile?.job_title || profile?.role || "No role"}
                     </p>
                   </div>
-                  <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", userMenuOpen && "rotate-180")} />
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 shrink-0 transition-transform",
+                      userMenuOpen && "rotate-180",
+                    )}
+                  />
                 </>
               )}
-              {sidebarCollapsed && <ChevronDown className={cn("h-3 w-3 shrink-0 absolute -bottom-0.5 -right-0.5", userMenuOpen && "rotate-180")} />}
+              {sidebarCollapsed && (
+                <ChevronDown
+                  className={cn(
+                    "h-3 w-3 shrink-0 absolute -bottom-0.5 -right-0.5",
+                    userMenuOpen && "rotate-180",
+                  )}
+                />
+              )}
             </button>
-            
+
             {/* Dropdown menu */}
             {userMenuOpen && (
-              <div className={cn(
-                "absolute z-50 rounded-lg border border-border bg-card shadow-xl",
-                sidebarCollapsed ? "left-full top-0 ml-2 w-48" : "bottom-full left-0 mb-2 w-full"
-              )}>
-                <div className={sidebarCollapsed ? "p-2 space-y-1" : "p-2 space-y-1"}>
+              <div
+                className={cn(
+                  "absolute z-50 rounded-lg border border-border bg-card shadow-xl",
+                  sidebarCollapsed
+                    ? "left-full top-0 ml-2 w-48"
+                    : "bottom-full left-0 mb-2 w-full",
+                )}
+              >
+                <div
+                  className={
+                    sidebarCollapsed ? "p-2 space-y-1" : "p-2 space-y-1"
+                  }
+                >
                   <button
                     onClick={handleSignOut}
                     className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive hover:bg-destructive/10"
@@ -211,5 +281,5 @@ export function Sidebar() {
         </div>
       </div>
     </>
-  )
+  );
 }

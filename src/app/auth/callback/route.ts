@@ -47,6 +47,29 @@ export async function GET(request: NextRequest) {
         if (logError && !isMissingAuthActivityTableError(logError)) {
           console.error('Failed to write auth activity:', logError)
         }
+
+        // Sync OAuth avatar to profiles table so it appears consistently across the app
+        interface OAuthMetadata {
+          avatar_url?: string
+          picture?: string
+          profile_picture_url?: string
+        }
+        const metadata = user.user_metadata as OAuthMetadata | undefined
+        const oauthAvatar =
+          typeof metadata?.avatar_url === 'string' && metadata.avatar_url
+            ? metadata.avatar_url
+            : typeof metadata?.picture === 'string' && metadata.picture
+            ? metadata.picture
+            : typeof metadata?.profile_picture_url === 'string' && metadata.profile_picture_url
+            ? metadata.profile_picture_url
+            : null
+
+        if (oauthAvatar) {
+          await supabase
+            .from('profiles')
+            .update({ avatar_url: oauthAvatar })
+            .eq('id', user.id)
+        }
       }
 
       return response

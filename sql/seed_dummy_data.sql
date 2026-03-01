@@ -8,26 +8,39 @@ INSERT INTO members (name, email, role)
 SELECT *
 FROM (
   VALUES
-    ('[DEMO] Ava Product', 'ava+demo@projecthub.local', 'pm'),
-    ('[DEMO] Ben Engineer', 'ben+demo@projecthub.local', 'developer'),
-    ('[DEMO] Chloe Design', 'chloe+demo@projecthub.local', 'designer'),
-    ('[DEMO] David Ops', 'david+demo@projecthub.local', 'member'),
-    ('[DEMO] Emma Finance', 'emma+demo@projecthub.local', 'accountant')
+    ('[DEMO] Ava Product', 'ava+demo@projecthub.local', 'admin'),
+    ('[DEMO] Ben Engineer', 'ben+demo@projecthub.local', 'member'),
+    ('[DEMO] Chloe Design', 'chloe+demo@projecthub.local', 'member'),
+    ('[DEMO] David Ops', 'david+demo@projecthub.local', 'viewer'),
+    ('[DEMO] Emma Finance', 'emma+demo@projecthub.local', 'viewer')
 ) AS incoming(name, email, role)
 WHERE NOT EXISTS (
   SELECT 1 FROM members m WHERE m.email = incoming.email
 );
 
--- Demo projects
-INSERT INTO projects (name, status, deadline, budget, description)
+-- Demo clients
+INSERT INTO clients (name, company, contact_email, website, notes)
 SELECT *
 FROM (
   VALUES
-    ('[DEMO] Website Revamp', 'active', CURRENT_DATE + 21, 18000, 'Landing, pricing, and onboarding refresh.'),
-    ('[DEMO] Mobile MVP', 'on-hold', CURRENT_DATE + 45, 42000, 'Core mobile workflows and push notifications.'),
-    ('[DEMO] Billing Automation', 'active', CURRENT_DATE + 14, 12000, 'Automate invoicing and payment reconciliation.'),
-    ('[DEMO] Security Hardening', 'completed', CURRENT_DATE - 3, 9000, 'Security controls and dependency review.')
-) AS incoming(name, status, deadline, budget, description)
+    ('[DEMO] BlueHarbor Realty', 'BlueHarbor Realty Group', 'contact@blueharbor.local', 'https://blueharbor.local', 'Key real estate client for the website revamp project.'),
+    ('[DEMO] Acme Corp', 'Acme Corporation', 'billing@acme.local', 'https://acme.local', 'Long-term manufacturing partner.'),
+    ('[DEMO] Stellar Systems', 'Stellar Systems Inc.', 'support@stellar.local', 'https://stellar.local', 'Cloud infrastructure and security services.')
+) AS incoming(name, company, contact_email, website, notes)
+WHERE NOT EXISTS (
+  SELECT 1 FROM clients c WHERE c.name = incoming.name
+);
+
+-- Demo projects
+INSERT INTO projects (name, status, deadline, budget, description, client_name)
+SELECT *
+FROM (
+  VALUES
+    ('[DEMO] Website Revamp', 'active', CURRENT_DATE + 21, 18000, 'Landing, pricing, and onboarding refresh.', '[DEMO] BlueHarbor Realty'),
+    ('[DEMO] Mobile MVP', 'on-hold', CURRENT_DATE + 45, 42000, 'Core mobile workflows and push notifications.', '[DEMO] Acme Corp'),
+    ('[DEMO] Billing Automation', 'active', CURRENT_DATE + 14, 12000, 'Automate invoicing and payment reconciliation.', '[DEMO] Acme Corp'),
+    ('[DEMO] Security Hardening', 'completed', CURRENT_DATE - 3, 9000, 'Security controls and dependency review.', '[DEMO] Stellar Systems')
+) AS incoming(name, status, deadline, budget, description, client_name)
 WHERE NOT EXISTS (
   SELECT 1 FROM projects p WHERE p.name = incoming.name
 );
@@ -84,5 +97,20 @@ BEGIN
       );
   END IF;
 END $$;
+
+-- Demo activities
+INSERT INTO project_activities (project_id, event_type, entity_type, entity_id, message, metadata)
+SELECT
+  p.id,
+  'project_created',
+  'project',
+  p.id,
+  'Created project ' || p.name,
+  jsonb_build_object('status', p.status)
+FROM projects p
+WHERE p.name LIKE '[DEMO]%'
+  AND NOT EXISTS (
+    SELECT 1 FROM project_activities pa WHERE pa.project_id = p.id AND pa.event_type = 'project_created'
+  );
 
 COMMIT;

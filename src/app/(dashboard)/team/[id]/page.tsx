@@ -12,6 +12,7 @@ type Member = {
   name: string
   email: string | null
   role: string
+  system_role?: string | null
   profiles?: { avatar_url?: string | null }[] | { avatar_url?: string | null } | null
 }
 
@@ -42,7 +43,7 @@ export default async function TeamMemberProfilePage({
 
   const { data: rawMember, error: memberError } = await supabase
     .from("members")
-    .select("id, created_at, name, email, role, user_id, profiles:profiles!members_user_id_fkey(avatar_url)")
+    .select("id, created_at, name, email, role, user_id, profiles:profiles!members_user_id_fkey(role, avatar_url)")
     .eq("id", id)
     .maybeSingle<Member>()
 
@@ -83,6 +84,11 @@ export default async function TeamMemberProfilePage({
       ? rawMember.profiles[0]?.avatar_url || null
       : (rawMember.profiles as { avatar_url?: string | null } | null)?.avatar_url || null
 
+  const systemRoleFromProfiles =
+    Array.isArray(rawMember.profiles) && rawMember.profiles.length > 0
+      ? (rawMember.profiles[0] as { role?: string | null })?.role || null
+      : (rawMember.profiles as { role?: string | null } | null)?.role || null
+
   const normalizedMemberEmail = (rawMember.email || "").trim().toLowerCase()
   const normalizedProfileEmail = (viewerProfile?.email || user.email || "").trim().toLowerCase()
   const selfAvatar =
@@ -96,6 +102,7 @@ export default async function TeamMemberProfilePage({
     name: rawMember.name,
     email: rawMember.email,
     role: rawMember.role,
+    system_role: systemRoleFromProfiles,
     user_id: rawMember.user_id,
     avatar_url: joinedAvatar || selfAvatar,
   }

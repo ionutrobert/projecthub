@@ -18,7 +18,7 @@ function isMissingClientsTable(message: string) {
   return message.includes("public.clients");
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -28,7 +28,18 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data, error } = await supabase.from("clients").select("*").order("name", { ascending: true });
+  // Get search query param
+  const url = new URL(request.url);
+  const search = url.searchParams.get("search")?.toLowerCase() || "";
+
+  let query = supabase.from("clients").select("*").order("name", { ascending: true });
+
+  if (search) {
+    // Search in name, company, contact_email, contact_phone
+    query = query.or(`name.ilike.%${search}%,company.ilike.%${search}%,contact_email.ilike.%${search}%,contact_phone.ilike.%${search}%`);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     if (isMissingClientsTable(error.message)) {

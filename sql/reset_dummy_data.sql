@@ -36,6 +36,12 @@ BEGIN
   END IF;
 END $$;
 
+-- Clear demo activities
+DELETE FROM project_activities
+WHERE project_id IN (
+  SELECT id FROM projects WHERE name LIKE '[DEMO]%'
+);
+
 -- Clear demo tasks
 DELETE FROM tasks
 WHERE title LIKE '[DEMO]%'
@@ -45,6 +51,9 @@ WHERE title LIKE '[DEMO]%'
 
 -- Clear demo projects
 DELETE FROM projects WHERE name LIKE '[DEMO]%';
+
+-- Clear demo clients
+DELETE FROM clients WHERE name LIKE '[DEMO]%';
 
 -- Clear demo members
 DELETE FROM members WHERE email LIKE '%+demo@projecthub.local';

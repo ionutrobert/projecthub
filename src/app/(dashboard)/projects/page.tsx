@@ -1011,10 +1011,11 @@ export default function ProjectsPage() {
               {sortedProjects.map((project) => {
                 const assigneeMembers = getProjectAssignees(project);
                 const assigneeNames = getProjectAssigneeNames(project).join(", ");
-                const assigneeInitials = assigneeMembers
-                  .slice(0, 3)
-                  .map((member) => getNameInitials(member.name, member.email))
-                  .join(", ");
+                const assigneeInitials =
+                  assigneeMembers
+                    .slice(0, 3)
+                    .map((member) => getNameInitials(member.name, member.email))
+                    .join(", ") + (assigneeMembers.length > 3 ? ".." : "");
                 const deadline = getDeadlineCopy(project.deadline);
                 return (
                   <div

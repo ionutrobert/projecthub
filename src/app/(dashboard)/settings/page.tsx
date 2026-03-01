@@ -46,7 +46,7 @@ export default function SettingsPage() {
     setAccentColor,
   } = useTheme()
   const { navStyle, setNavStyle } = useNavStyle()
-  const { user, profile, impersonation, signOut } = useUser()
+  const { user, profile, loading, impersonation, signOut } = useUser()
   const avatarUser = impersonation ? null : user
   const [profileName, setProfileName] = useState("")
   const [avatarUrl, setAvatarUrl] = useState("")
@@ -66,6 +66,15 @@ export default function SettingsPage() {
 
   const [authEvents, setAuthEvents] = useState<AuthEvent[]>([])
   const [loadingEvents, setLoadingEvents] = useState(true)
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window === "undefined") return "account";
+    const stored = window.sessionStorage.getItem("projecthub-settings-active-tab");
+    return stored || "account";
+  });
+
+  useEffect(() => {
+    window.sessionStorage.setItem("projecthub-settings-active-tab", activeTab)
+  }, [activeTab])
 
   const avatarSeed = user?.id || user?.email || profileName || "projecthub-user"
   const avatarOptions = useMemo(
@@ -229,7 +238,7 @@ export default function SettingsPage() {
         <p className="text-muted-foreground">Customize how ProjectHub feels for you.</p>
       </div>
 
-      <Tabs defaultValue="account" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue={activeTab} className="space-y-6">
         <TabsList className="grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="account" className="gap-2">
             <UserCog className="h-4 w-4" />
@@ -314,16 +323,20 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="flex items-center gap-4 pt-2">
-                      <UserAvatar
-                        profile={{
-                          full_name: profileName,
-                          avatar_url: avatarUrl || profile?.avatar_url,
-                          email: profile?.email || user?.email || null,
-                        }}
-                        user={avatarUser}
-                        sizeClass="h-16 w-16 shadow-lg border-2 border-border"
-                        textClass="text-xl"
-                      />
+                      {loading ? (
+                        <div className="h-16 w-16 rounded-full bg-muted animate-pulse" />
+                      ) : (
+                        <UserAvatar
+                          profile={{
+                            full_name: profileName,
+                            avatar_url: avatarUrl || profile?.avatar_url,
+                            email: profile?.email || user?.email || null,
+                          }}
+                          user={avatarUser}
+                          sizeClass="h-16 w-16 shadow-lg border-2 border-border"
+                          textClass="text-xl"
+                        />
+                      )}
                       <div className="space-y-1">
                         <Button size="sm" onClick={handleSaveProfile} disabled={savingProfile}>
                           {savingProfile ? "Saving..." : "Save Changes"}

@@ -23,7 +23,12 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import MemberAvatar from "@/components/member-avatar";
-import ProjectPreviewModal from "@/components/project-preview-modal";
+import dynamic from "next/dynamic";
+
+const ProjectPreviewModal = dynamic(
+  () => import("@/components/project-preview-modal"),
+  { ssr: false }
+);
 import { useTheme } from "@/components/theme-provider";
 import { useUser } from "@/components/user-provider";
 import { cn } from "@/lib/utils";
@@ -61,7 +66,8 @@ type Member = {
   id: string;
   name: string;
   email?: string | null;
-  role?: string | null;
+  role?: string | null; // Job Title
+  system_role?: string | null; // Permission
   user_id?: string | null;
   avatar_url?: string | null;
 };
@@ -119,7 +125,9 @@ const DEFAULT_LAYOUT: DashboardLayoutItem[] = [
   { id: "overdueTasks", size: "sm" },
   { id: "teamMembers", size: "sm" },
   { id: "onHoldProjects", size: "sm" },
-  ...(ENABLE_RECENT_PROJECTS_WIDGET ? ([{ id: "recentProjects", size: "md" }] as DashboardLayoutItem[]) : []),
+  ...(ENABLE_RECENT_PROJECTS_WIDGET
+    ? ([{ id: "recentProjects", size: "md" }] as DashboardLayoutItem[])
+    : []),
 ];
 
 const WIDGETS: WidgetDefinition[] = [
@@ -199,7 +207,6 @@ const WIDGETS: WidgetDefinition[] = [
     : []),
 ];
 
-
 function widgetMinSize(id: WidgetId): WidgetSize {
   return id === "recentProjects" ? "sm" : "sm";
 }
@@ -245,7 +252,6 @@ function getWidgetSpanClass(size: WidgetSize) {
   }
 }
 
-
 function normalizePreferences(input: unknown): DashboardPreferences {
   if (!input || typeof input !== "object") {
     return { layout: DEFAULT_LAYOUT, hiddenWidgetIds: [] };
@@ -264,13 +270,15 @@ function normalizePreferences(input: unknown): DashboardPreferences {
       id: item.id,
       size: clampWidgetSize(
         item.id,
-        (["sm", "md", "lg", "xl"].includes(item.size) ? item.size : "sm") as WidgetSize,
+        (["sm", "md", "lg", "xl"].includes(item.size)
+          ? item.size
+          : "sm") as WidgetSize,
       ),
     }));
 
-  const hiddenWidgetIds = (Array.isArray(raw.hiddenWidgetIds) ? raw.hiddenWidgetIds : []).filter(
-    (id): id is WidgetId => knownIds.has(id as WidgetId),
-  );
+  const hiddenWidgetIds = (
+    Array.isArray(raw.hiddenWidgetIds) ? raw.hiddenWidgetIds : []
+  ).filter((id): id is WidgetId => knownIds.has(id as WidgetId));
 
   const seen = new Set(layout.map((item) => item.id));
   const mergedLayout = [...layout];
@@ -298,17 +306,22 @@ export default function DashboardClient() {
   const [loading, setLoading] = useState(true);
   const [customizationOpen, setCustomizationOpen] = useState(false);
   const [draggedWidgetId, setDraggedWidgetId] = useState<WidgetId | null>(null);
-  const [selectedRecentProjectId, setSelectedRecentProjectId] = useState<string | null>(null);
+  const [dragOverWidgetId, setDragOverWidgetId] = useState<WidgetId | null>(null);
+  const [selectedRecentProjectId, setSelectedRecentProjectId] = useState<
+    string | null
+  >(null);
   const [preferences, setPreferences] = useState<DashboardPreferences>({
     layout: DEFAULT_LAYOUT,
     hiddenWidgetIds: [],
   });
-  const [persistNotice, setPersistNotice] = useState<string | null>(null);
+  // persistNotice removed – layout auto-saves without notification
   const [layoutChangedByUser, setLayoutChangedByUser] = useState(false);
   const [hasLoadedPreferences, setHasLoadedPreferences] = useState(false);
   const [skipInitialPersist, setSkipInitialPersist] = useState(true);
   const [layoutMode, setLayoutMode] = useState<LayoutMode | null>(null);
-  const [welcomeMessage, setWelcomeMessage] = useState("Welcome back to ProjectHub.");
+  const [welcomeMessage, setWelcomeMessage] = useState(
+    "Welcome back to ProjectHub.",
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -331,11 +344,11 @@ export default function DashboardClient() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [projectsRes, tasksRes, membersRes] = await Promise.all([
-        fetch("/api/projects", { cache: "no-store" }),
-        fetch("/api/tasks", { cache: "no-store" }),
-        fetch("/api/members", { cache: "no-store" }),
-      ]);
+       const [projectsRes, tasksRes, membersRes] = await Promise.all([
+         fetch("/api/projects", { next: { revalidate: 30 } }),
+         fetch("/api/tasks", { next: { revalidate: 30 } }),
+         fetch("/api/members", { next: { revalidate: 30 } }),
+       ]);
       const [projectsData, tasksData, membersData] = await Promise.all([
         projectsRes.json(),
         tasksRes.json(),
@@ -401,9 +414,12 @@ export default function DashboardClient() {
       }
 
       try {
-        const response = await fetch(`/api/dashboard/preferences?device=${layoutMode}`, {
-          cache: "no-store",
-        });
+        const response = await fetch(
+           `/api/dashboard/preferences?device=${layoutMode}`,
+           {
+             next: { revalidate: 60 },
+           },
+         );
         const payload = await response.json();
 
         if (!isMounted) return;
@@ -412,12 +428,12 @@ export default function DashboardClient() {
           const normalized = normalizePreferences(payload?.preferences);
           const serverFallbackWarning = typeof payload?.warning === "string";
 
-            if (!serverFallbackWarning || !hasLocalPreferences) {
-              setPreferences(normalized);
-              if (typeof window !== "undefined") {
-                window.localStorage.setItem(localKey, JSON.stringify(normalized));
-              }
+          if (!serverFallbackWarning || !hasLocalPreferences) {
+            setPreferences(normalized);
+            if (typeof window !== "undefined") {
+              window.localStorage.setItem(localKey, JSON.stringify(normalized));
             }
+          }
         } else {
           throw new Error("Preferences API unavailable");
         }
@@ -453,30 +469,26 @@ export default function DashboardClient() {
     let cancelled = false;
     const timer = setTimeout(async () => {
       try {
-        const response = await fetch(`/api/dashboard/preferences?device=${layoutMode}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ preferences }),
-        });
-        const payload = await response.json().catch(() => null);
+        const response = await fetch(
+          `/api/dashboard/preferences?device=${layoutMode}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ preferences }),
+          },
+        );
 
         if (!cancelled) {
           if (response.ok) {
-            const savedMessage = payload?.warning
-              ? "Saved locally. Apply DB migration for cross-device sync."
-              : `Saved ${layoutMode} layout`;
-            setPersistNotice(savedMessage);
-            setTimeout(() => {
-              setPersistNotice((current) => (current === savedMessage ? null : current));
-            }, 900);
             setLayoutChangedByUser(false);
           } else {
-            setPersistNotice("Saved locally. Database sync unavailable right now.");
+            // Silently fail; could log to error reporting
+            console.error("Failed to save dashboard preferences");
           }
         }
-      } catch {
+      } catch (err) {
         if (!cancelled) {
-          setPersistNotice("Saved locally. Database sync unavailable right now.");
+          console.error("Failed to save dashboard preferences", err);
         }
       }
 
@@ -492,14 +504,29 @@ export default function DashboardClient() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [preferences, hasLoadedPreferences, layoutMode, skipInitialPersist, layoutChangedByUser]);
+  }, [
+    preferences,
+    hasLoadedPreferences,
+    layoutMode,
+    skipInitialPersist,
+    layoutChangedByUser,
+  ]);
 
   const projectStats = useMemo(() => {
     const totalProjects = projects.length;
-    const activeProjects = projects.filter((project) => project.status === "active").length;
-    const completedProjects = projects.filter((project) => project.status === "completed").length;
-    const onHoldProjects = projects.filter((project) => project.status === "on-hold").length;
-    const totalBudget = projects.reduce((sum, project) => sum + Number(project.budget || 0), 0);
+    const activeProjects = projects.filter(
+      (project) => project.status === "active",
+    ).length;
+    const completedProjects = projects.filter(
+      (project) => project.status === "completed",
+    ).length;
+    const onHoldProjects = projects.filter(
+      (project) => project.status === "on-hold",
+    ).length;
+    const totalBudget = projects.reduce(
+      (sum, project) => sum + Number(project.budget || 0),
+      0,
+    );
 
     return {
       totalProjects,
@@ -514,9 +541,14 @@ export default function DashboardClient() {
     const today = getTodayDateKey();
 
     const todoTasks = tasks.filter((task) => task.status === "todo").length;
-    const inProgressTasks = tasks.filter((task) => task.status === "in-progress").length;
+    const inProgressTasks = tasks.filter(
+      (task) => task.status === "in-progress",
+    ).length;
     const overdueTasks = tasks.filter(
-      (task) => task.status !== "done" && task.due_date !== null && task.due_date < today,
+      (task) =>
+        task.status !== "done" &&
+        task.due_date !== null &&
+        task.due_date < today,
     ).length;
 
     return {
@@ -530,13 +562,20 @@ export default function DashboardClient() {
     const uniqueMembers = members.filter((member, index, all) => {
       const key = (member.user_id || member.email || member.id).toLowerCase();
       return (
-        all.findIndex((candidate) =>
-          (candidate.user_id || candidate.email || candidate.id).toLowerCase() === key,
+        all.findIndex(
+          (candidate) =>
+            (
+              candidate.user_id ||
+              candidate.email ||
+              candidate.id
+            ).toLowerCase() === key,
         ) === index
       );
     });
 
-    const admins = uniqueMembers.filter((member) => member.role === "admin").length;
+    const admins = uniqueMembers.filter(
+      (member) => member.system_role === "admin",
+    ).length;
 
     return {
       total: uniqueMembers.length,
@@ -574,13 +613,17 @@ export default function DashboardClient() {
         return {
           ...prev,
           layout: [...prev.layout, { id, size: widgetMinSize(id) }],
-          hiddenWidgetIds: prev.hiddenWidgetIds.filter((hiddenId) => hiddenId !== id),
+          hiddenWidgetIds: prev.hiddenWidgetIds.filter(
+            (hiddenId) => hiddenId !== id,
+          ),
         };
       }
 
       return {
         ...prev,
-        hiddenWidgetIds: prev.hiddenWidgetIds.filter((hiddenId) => hiddenId !== id),
+        hiddenWidgetIds: prev.hiddenWidgetIds.filter(
+          (hiddenId) => hiddenId !== id,
+        ),
       };
     });
   };
@@ -602,9 +645,12 @@ export default function DashboardClient() {
       ...prev,
       layout: prev.layout.map((item) => {
         if (item.id !== id) return item;
-        if (item.size === "sm") return { ...item, size: clampWidgetSize(item.id, "md") };
-        if (item.size === "md") return { ...item, size: clampWidgetSize(item.id, "lg") };
-        if (item.size === "lg") return { ...item, size: clampWidgetSize(item.id, "xl") };
+        if (item.size === "sm")
+          return { ...item, size: clampWidgetSize(item.id, "md") };
+        if (item.size === "md")
+          return { ...item, size: clampWidgetSize(item.id, "lg") };
+        if (item.size === "lg")
+          return { ...item, size: clampWidgetSize(item.id, "xl") };
         return item;
       }),
     }));
@@ -616,9 +662,12 @@ export default function DashboardClient() {
       ...prev,
       layout: prev.layout.map((item) => {
         if (item.id !== id) return item;
-        if (item.size === "xl") return { ...item, size: clampWidgetSize(item.id, "lg") };
-        if (item.size === "lg") return { ...item, size: clampWidgetSize(item.id, "md") };
-        if (item.size === "md") return { ...item, size: clampWidgetSize(item.id, "sm") };
+        if (item.size === "xl")
+          return { ...item, size: clampWidgetSize(item.id, "lg") };
+        if (item.size === "lg")
+          return { ...item, size: clampWidgetSize(item.id, "md") };
+        if (item.size === "md")
+          return { ...item, size: clampWidgetSize(item.id, "sm") };
         return item;
       }),
     }));
@@ -660,12 +709,13 @@ export default function DashboardClient() {
   const restoreDefaults = () => {
     setLayoutChangedByUser(true);
     setPreferences({ layout: DEFAULT_LAYOUT, hiddenWidgetIds: [] });
-    setPersistNotice("Dashboard reset to defaults.");
-    setTimeout(() => setPersistNotice(null), 1800);
+    // No notification needed – layout auto-saves
   };
 
   const hiddenWidgetSet = new Set(preferences.hiddenWidgetIds);
-  const hiddenWidgets = WIDGETS.filter((widget) => hiddenWidgetSet.has(widget.id));
+  const hiddenWidgets = WIDGETS.filter((widget) =>
+    hiddenWidgetSet.has(widget.id),
+  );
 
   const widgetDetailBars = useMemo(() => {
     const projectMax = Math.max(
@@ -675,45 +725,102 @@ export default function DashboardClient() {
       projectStats.completedProjects,
       projectStats.onHoldProjects,
     );
-    const taskMax = Math.max(1, taskStats.todoTasks, taskStats.inProgressTasks, taskStats.overdueTasks);
+    const taskMax = Math.max(
+      1,
+      taskStats.todoTasks,
+      taskStats.inProgressTasks,
+      taskStats.overdueTasks,
+    );
 
     return {
       totalProjects: [
-        { label: "Active", value: projectStats.activeProjects, max: projectMax },
-        { label: "Completed", value: projectStats.completedProjects, max: projectMax },
-        { label: "On hold", value: projectStats.onHoldProjects, max: projectMax },
+        {
+          label: "Active",
+          value: projectStats.activeProjects,
+          max: projectMax,
+        },
+        {
+          label: "Completed",
+          value: projectStats.completedProjects,
+          max: projectMax,
+        },
+        {
+          label: "On hold",
+          value: projectStats.onHoldProjects,
+          max: projectMax,
+        },
       ],
       activeProjects: [
-        { label: "Active", value: projectStats.activeProjects, max: projectMax },
+        {
+          label: "Active",
+          value: projectStats.activeProjects,
+          max: projectMax,
+        },
         { label: "All", value: projectStats.totalProjects, max: projectMax },
       ],
       completedProjects: [
-        { label: "Completed", value: projectStats.completedProjects, max: projectMax },
+        {
+          label: "Completed",
+          value: projectStats.completedProjects,
+          max: projectMax,
+        },
         { label: "All", value: projectStats.totalProjects, max: projectMax },
       ],
       onHoldProjects: [
-        { label: "On hold", value: projectStats.onHoldProjects, max: projectMax },
+        {
+          label: "On hold",
+          value: projectStats.onHoldProjects,
+          max: projectMax,
+        },
         { label: "All", value: projectStats.totalProjects, max: projectMax },
       ],
       totalBudget: [
-        { label: "Projects", value: projectStats.totalProjects, max: projectMax },
-        { label: "Active", value: projectStats.activeProjects, max: projectMax },
+        {
+          label: "Projects",
+          value: projectStats.totalProjects,
+          max: projectMax,
+        },
+        {
+          label: "Active",
+          value: projectStats.activeProjects,
+          max: projectMax,
+        },
       ],
       todoTasks: [
         { label: "Todo", value: taskStats.todoTasks, max: taskMax },
-        { label: "In progress", value: taskStats.inProgressTasks, max: taskMax },
+        {
+          label: "In progress",
+          value: taskStats.inProgressTasks,
+          max: taskMax,
+        },
       ],
       inProgressTasks: [
-        { label: "In progress", value: taskStats.inProgressTasks, max: taskMax },
+        {
+          label: "In progress",
+          value: taskStats.inProgressTasks,
+          max: taskMax,
+        },
         { label: "Todo", value: taskStats.todoTasks, max: taskMax },
       ],
       overdueTasks: [
         { label: "Overdue", value: taskStats.overdueTasks, max: taskMax },
-        { label: "In progress", value: taskStats.inProgressTasks, max: taskMax },
+        {
+          label: "In progress",
+          value: taskStats.inProgressTasks,
+          max: taskMax,
+        },
       ],
       teamMembers: [
-        { label: "Admins", value: memberStats.admins, max: Math.max(1, memberStats.total) },
-        { label: "Contributors", value: memberStats.contributors, max: Math.max(1, memberStats.total) },
+        {
+          label: "Admins",
+          value: memberStats.admins,
+          max: Math.max(1, memberStats.total),
+        },
+        {
+          label: "Contributors",
+          value: memberStats.contributors,
+          max: Math.max(1, memberStats.total),
+        },
       ],
       recentProjects: [],
     } as const;
@@ -731,7 +838,11 @@ export default function DashboardClient() {
 
   const selectedRecentProject = useMemo(() => {
     if (!selectedRecentProjectId) return null;
-    return recentProjects.find((project) => project.id === selectedRecentProjectId) || null;
+    return (
+      recentProjects.find(
+        (project) => project.id === selectedRecentProjectId,
+      ) || null
+    );
   }, [recentProjects, selectedRecentProjectId]);
 
   useEffect(() => {
@@ -748,10 +859,12 @@ export default function DashboardClient() {
   }, [selectedRecentProject]);
 
   return (
-    <div className="space-y-6 page-transition">
+    <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Dashboard</h1>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+            Dashboard
+          </h1>
           <p className="text-sm text-muted-foreground sm:text-base">
             {welcomeMessage}
           </p>
@@ -762,7 +875,8 @@ export default function DashboardClient() {
             variant="outline"
             className={cn(
               "w-fit gap-2",
-              customizationOpen && "border-primary bg-primary/10 text-primary shadow-sm animate-pulse",
+              customizationOpen &&
+                "border-primary bg-primary/10 text-primary shadow-sm animate-pulse",
             )}
             style={
               customizationOpen
@@ -778,7 +892,13 @@ export default function DashboardClient() {
             {customizationOpen ? "Close Customization" : "Customize Dashboard"}
           </Button>
           {customizationOpen && (
-            <Button type="button" variant="outline" size="sm" className="border-border/90 bg-background" onClick={restoreDefaults}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-border/90 bg-background"
+              onClick={restoreDefaults}
+            >
               Restore Default Layout
             </Button>
           )}
@@ -789,14 +909,19 @@ export default function DashboardClient() {
         <Card className="glass border-primary/40 bg-primary/5">
           <CardContent className="p-3 sm:p-4">
             <div className="flex flex-col gap-1 text-xs sm:text-sm">
-              <p className="font-semibold text-primary">Customization mode is ON</p>
-              <p className="text-muted-foreground">
-                Drag cards to reorder. Use <span className="font-medium">↑/↓</span> to move on mobile,
-                <span className="font-medium"> − / + </span>to resize, and <span className="font-medium">×</span> to hide.
-                Hidden widgets appear below and can be restored with <span className="font-medium">+</span>.
-                Changes save automatically.
+              <p className="font-semibold text-primary">
+                Customization mode is ON
               </p>
-              {persistNotice && <p className="text-xs text-primary/90">{persistNotice}</p>}
+              <p className="text-muted-foreground">
+                Drag cards to reorder. Use{" "}
+                <span className="font-medium">↑/↓</span> to move on mobile,
+                <span className="font-medium"> − / + </span>to resize, and{" "}
+                <span className="font-medium">×</span> to hide. Hidden widgets
+                appear below and can be restored with{" "}
+                <span className="font-medium">+</span>. Changes save
+                automatically.
+              </p>
+               {/* Persist notice removed – auto-save without layout shift */}
             </div>
           </CardContent>
         </Card>
@@ -813,11 +938,19 @@ export default function DashboardClient() {
           const isTeamMembersWidget = widget.id === "teamMembers";
           const bars = widgetDetailBars[widget.id] || [];
           const recentRowsToShow =
-            layoutItem.size === "sm" ? 2 : layoutItem.size === "md" ? 2 : layoutItem.size === "lg" ? 3 : 5;
-          const canGrow = layoutItem.size !== "xl";
-          const canShrink = layoutItem.size !== widgetMinSize(widget.id);
+            layoutItem.size === "sm"
+              ? 2
+              : layoutItem.size === "md"
+                ? 2
+                : layoutItem.size === "lg"
+                  ? 3
+                  : 5;
+           const canGrow = layoutItem.size !== "xl";
+           const canShrink = layoutItem.size !== widgetMinSize(widget.id);
+           const isDragging = draggedWidgetId === widget.id;
+           const isDropTarget = dragOverWidgetId === widget.id;
 
-          return (
+           return (
             <Card
               key={widget.id}
               draggable={customizationOpen}
@@ -825,20 +958,40 @@ export default function DashboardClient() {
               onDragOver={(event) => {
                 if (customizationOpen) {
                   event.preventDefault();
+                  if (draggedWidgetId && draggedWidgetId !== widget.id) {
+                    setDragOverWidgetId(widget.id);
+                  }
+                }
+              }}
+              onDragLeave={() => {
+                if (draggedWidgetId) {
+                  setDragOverWidgetId(null);
                 }
               }}
               onDrop={() => {
                 if (!customizationOpen || !draggedWidgetId) return;
                 reorderWidget(draggedWidgetId, widget.id);
                 setDraggedWidgetId(null);
+                setDragOverWidgetId(null);
               }}
-              onDragEnd={() => setDraggedWidgetId(null)}
+              onDragEnd={() => {
+                setDraggedWidgetId(null);
+                setDragOverWidgetId(null);
+              }}
               className={cn(
-                "glass relative border-border/70 transition-colors hover:border-primary/40",
-                customizationOpen ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
+                "glass relative border-border/70 transition-all hover:border-primary/40",
+                customizationOpen
+                  ? "cursor-grab active:cursor-grabbing"
+                  : "cursor-pointer",
                 customizationOpen && "dashboard-widget-wiggle",
-                isRecentProjectsWidget && layoutItem.size === "xl" && "min-h-[24rem]",
-                isRecentProjectsWidget && layoutItem.size === "lg" && "min-h-[20rem]",
+                isDragging && "opacity-60",
+                isDropTarget && "bg-primary/5 border-primary",
+                isRecentProjectsWidget &&
+                  layoutItem.size === "xl" &&
+                  "min-h-[24rem]",
+                isRecentProjectsWidget &&
+                  layoutItem.size === "lg" &&
+                  "min-h-[20rem]",
                 getWidgetSpanClass(layoutItem.size),
               )}
               onClick={() => {
@@ -850,11 +1003,17 @@ export default function DashboardClient() {
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-2">
                   <div className="space-y-0.5">
-                    <CardTitle className="text-sm font-semibold">{widget.title}</CardTitle>
-                    <p className="text-xs text-muted-foreground">{widget.description}</p>
+                    <CardTitle className="text-sm font-semibold">
+                      {widget.title}
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground">
+                      {widget.description}
+                    </p>
                   </div>
                   <div className="flex items-center gap-1">
-                    {customizationOpen && <GripVertical className="h-4 w-4 text-muted-foreground" />}
+                    {customizationOpen && (
+                      <GripVertical className="h-4 w-4 text-muted-foreground" />
+                    )}
                     <Icon className="h-4 w-4 text-primary" />
                   </div>
                 </div>
@@ -866,7 +1025,11 @@ export default function DashboardClient() {
                     <button
                       type="button"
                       className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background/70 text-muted-foreground hover:text-foreground disabled:opacity-40"
-                      disabled={preferences.layout.findIndex((item) => item.id === widget.id) === 0}
+                      disabled={
+                        preferences.layout.findIndex(
+                          (item) => item.id === widget.id,
+                        ) === 0
+                      }
                       onClick={() => moveWidget(widget.id, "up")}
                       title="Move up"
                     >
@@ -876,7 +1039,9 @@ export default function DashboardClient() {
                       type="button"
                       className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background/70 text-muted-foreground hover:text-foreground disabled:opacity-40"
                       disabled={
-                        preferences.layout.findIndex((item) => item.id === widget.id) ===
+                        preferences.layout.findIndex(
+                          (item) => item.id === widget.id,
+                        ) ===
                         preferences.layout.length - 1
                       }
                       onClick={() => moveWidget(widget.id, "down")}
@@ -916,9 +1081,13 @@ export default function DashboardClient() {
               <CardContent>
                 {!isRecentProjectsWidget && (
                   <div className="flex items-end justify-between gap-2">
-                    <span className="text-3xl font-bold tracking-tight">{value}</span>
+                    <span className="text-3xl font-bold tracking-tight">
+                      {value}
+                    </span>
                     {customizationOpen ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">Arrange</span>
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        Arrange
+                      </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                         Open
@@ -939,38 +1108,52 @@ export default function DashboardClient() {
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {recentProjects.slice(0, recentRowsToShow).map((project) => (
-                        <button
-                          key={project.id}
-                          type="button"
-                          className={cn(
-                            "flex w-full items-center justify-between rounded-lg border border-border/70 px-3 text-left transition-colors hover:bg-accent/50",
-                            selectedRecentProjectId === project.id && "border-primary/40 bg-primary/5",
-                            layoutItem.size === "sm" || layoutItem.size === "md" ? "py-2" : "py-3",
-                          )}
-                          onClick={() => {
-                            if (customizationOpen) return;
-                            setSelectedRecentProjectId(project.id);
-                          }}
-                        >
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold">{project.name}</p>
-                            {(layoutItem.size === "lg" || layoutItem.size === "xl") && (
-                              <p className="text-xs text-muted-foreground">
-                                Deadline: {project.deadline || "Not set"}
-                              </p>
+                      {recentProjects
+                        .slice(0, recentRowsToShow)
+                        .map((project) => (
+                          <button
+                            key={project.id}
+                            type="button"
+                            className={cn(
+                              "flex w-full items-center justify-between rounded-lg border border-border/70 px-3 text-left transition-colors hover:bg-accent/50",
+                              selectedRecentProjectId === project.id &&
+                                "border-primary/40 bg-primary/5",
+                              layoutItem.size === "sm" ||
+                                layoutItem.size === "md"
+                                ? "py-2"
+                                : "py-3",
                             )}
-                          </div>
-                          <div className="ml-4 text-right">
-                            <span className="text-xs capitalize text-muted-foreground">{project.status}</span>
-                            {(layoutItem.size === "lg" || layoutItem.size === "xl") && (
-                              <p className="text-sm font-medium">
-                                {project.budget ? `$${project.budget.toLocaleString()}` : "-"}
+                            onClick={() => {
+                              if (customizationOpen) return;
+                              setSelectedRecentProjectId(project.id);
+                            }}
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold">
+                                {project.name}
                               </p>
-                            )}
-                          </div>
-                        </button>
-                      ))}
+                              {(layoutItem.size === "lg" ||
+                                layoutItem.size === "xl") && (
+                                <p className="text-xs text-muted-foreground">
+                                  Deadline: {project.deadline || "Not set"}
+                                </p>
+                              )}
+                            </div>
+                            <div className="ml-4 text-right">
+                              <span className="text-xs capitalize text-muted-foreground">
+                                {project.status}
+                              </span>
+                              {(layoutItem.size === "lg" ||
+                                layoutItem.size === "xl") && (
+                                <p className="text-sm font-medium">
+                                  {project.budget
+                                    ? `$${project.budget.toLocaleString()}`
+                                    : "-"}
+                                </p>
+                              )}
+                            </div>
+                          </button>
+                        ))}
                     </div>
                   )
                 ) : isTeamMembersWidget ? (
@@ -997,7 +1180,10 @@ export default function DashboardClient() {
                     {layoutItem.size !== "sm" && bars.length > 0 && (
                       <div className="space-y-2">
                         {bars.map((bar) => {
-                          const width = Math.max(8, Math.round((bar.value / bar.max) * 100));
+                          const width = Math.max(
+                            8,
+                            Math.round((bar.value / bar.max) * 100),
+                          );
                           return (
                             <div key={bar.label} className="space-y-1">
                               <div className="flex items-center justify-between text-[11px] text-muted-foreground">
@@ -1005,7 +1191,10 @@ export default function DashboardClient() {
                                 <span>{bar.value}</span>
                               </div>
                               <div className="h-1.5 rounded-full bg-muted">
-                                <div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} />
+                                <div
+                                  className="h-full rounded-full bg-primary"
+                                  style={{ width: `${width}%` }}
+                                />
                               </div>
                             </div>
                           );
@@ -1014,23 +1203,30 @@ export default function DashboardClient() {
                     )}
                   </div>
                 ) : (
-                  layoutItem.size !== "sm" && bars.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    {bars.map((bar) => {
-                      const width = Math.max(8, Math.round((bar.value / bar.max) * 100));
-                      return (
-                        <div key={bar.label} className="space-y-1">
-                          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                            <span>{bar.label}</span>
-                            <span>{bar.value}</span>
+                  layoutItem.size !== "sm" &&
+                  bars.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {bars.map((bar) => {
+                        const width = Math.max(
+                          8,
+                          Math.round((bar.value / bar.max) * 100),
+                        );
+                        return (
+                          <div key={bar.label} className="space-y-1">
+                            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                              <span>{bar.label}</span>
+                              <span>{bar.value}</span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-muted">
+                              <div
+                                className="h-full rounded-full bg-primary"
+                                style={{ width: `${width}%` }}
+                              />
+                            </div>
                           </div>
-                          <div className="h-1.5 rounded-full bg-muted">
-                            <div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
                   )
                 )}
               </CardContent>
@@ -1043,7 +1239,9 @@ export default function DashboardClient() {
         <Card className="glass border-dashed border-border/70">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Hidden Widgets</CardTitle>
-            <p className="text-xs text-muted-foreground">These are hidden from your dashboard. Tap + to show again.</p>
+            <p className="text-xs text-muted-foreground">
+              These are hidden from your dashboard. Tap + to show again.
+            </p>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -1074,50 +1272,65 @@ export default function DashboardClient() {
         </Card>
       )}
 
-      {!ENABLE_RECENT_PROJECTS_WIDGET && <Card className="glass overflow-hidden">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Recent Projects</CardTitle>
-          <Button variant="outline" size="sm" onClick={() => router.push("/projects")}>
-            Open Projects
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center py-10">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : recentProjects.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-              No projects yet. Create your first project.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {recentProjects.map((project) => (
-                <button
-                  key={project.id}
-                  type="button"
-                  className={cn(
-                    "flex w-full items-center justify-between rounded-lg border border-border/70 px-3 py-3 text-left transition-colors hover:bg-accent/50",
-                    selectedRecentProjectId === project.id && "border-primary/40 bg-primary/5",
-                  )}
-                  onClick={() => setSelectedRecentProjectId(project.id)}
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">{project.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Deadline: {project.deadline || "Not set"}
-                    </p>
-                  </div>
-                  <div className="ml-4 text-right">
-                    <span className="text-xs capitalize text-muted-foreground">{project.status}</span>
-                    <p className="text-sm font-medium">{project.budget ? `$${project.budget.toLocaleString()}` : "-"}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>}
+      {!ENABLE_RECENT_PROJECTS_WIDGET && (
+        <Card className="glass overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-base">Recent Projects</CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push("/projects")}
+            >
+              Open Projects
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : recentProjects.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+                No projects yet. Create your first project.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {recentProjects.map((project) => (
+                  <button
+                    key={project.id}
+                    type="button"
+                    className={cn(
+                      "flex w-full items-center justify-between rounded-lg border border-border/70 px-3 py-3 text-left transition-colors hover:bg-accent/50",
+                      selectedRecentProjectId === project.id &&
+                        "border-primary/40 bg-primary/5",
+                    )}
+                    onClick={() => setSelectedRecentProjectId(project.id)}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">
+                        {project.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Deadline: {project.deadline || "Not set"}
+                      </p>
+                    </div>
+                    <div className="ml-4 text-right">
+                      <span className="text-xs capitalize text-muted-foreground">
+                        {project.status}
+                      </span>
+                      <p className="text-sm font-medium">
+                        {project.budget
+                          ? `$${project.budget.toLocaleString()}`
+                          : "-"}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <ProjectPreviewModal
         project={selectedRecentProject}
@@ -1127,8 +1340,10 @@ export default function DashboardClient() {
         onProjectUpdated={(updatedProject) => {
           setProjects((prev) =>
             prev.map((project) =>
-              project.id === updatedProject.id ? { ...project, ...updatedProject } : project
-            )
+              project.id === updatedProject.id
+                ? { ...project, ...updatedProject }
+                : project,
+            ),
           );
         }}
         onOpenProjectPage={(projectId) => router.push(`/projects/${projectId}`)}

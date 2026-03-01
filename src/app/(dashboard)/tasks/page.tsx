@@ -532,7 +532,7 @@ export default function TasksPage() {
     if (viewMode === "timeline") params.set("timeline", "1")
 
     const suffix = params.toString() ? `?${params.toString()}` : ""
-    const response = await fetch(`/api/tasks${suffix}`, { cache: "no-store" })
+     const response = await fetch(`/api/tasks${suffix}`, { next: { revalidate: 30 } })
     const data = await response.json()
     if (!response.ok) {
       throw new Error(data?.error || "Failed to load tasks")
@@ -545,10 +545,10 @@ export default function TasksPage() {
     setError(null)
     try {
       const [projectsRes, membersRes, tasksData] = await Promise.all([
-        fetch("/api/projects", { cache: "no-store" }),
-        fetch("/api/members", { cache: "no-store" }),
-        fetchTasks(),
-      ])
+         fetch("/api/projects", { next: { revalidate: 30 } }),
+         fetch("/api/members", { next: { revalidate: 30 } }),
+         fetchTasks(),
+       ])
 
       const [projectsData, membersData] = await Promise.all([
         projectsRes.json(),
