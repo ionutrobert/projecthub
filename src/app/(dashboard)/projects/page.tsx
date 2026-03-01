@@ -1299,7 +1299,7 @@ export default function ProjectsPage() {
                                     <span className="text-[9px] text-muted-foreground">+{assigneeMembers.length - 4}</span>
                                   )}
                                   <span className="truncate text-[10px] text-muted-foreground max-w-[80px]">
-                                    {assignees.slice(0, 2).join(", ")}{assignees.length > 2 ? "…" : ""}
+                                    {assigneeMembers.slice(0, 4).map((m) => getNameInitials(m.name, m.email)).join(", ")}{assigneeMembers.length > 4 ? "…" : ""}
                                   </span>
                                 </div>
                               )}
