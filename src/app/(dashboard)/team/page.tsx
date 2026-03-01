@@ -716,7 +716,7 @@ const updateMemberQuickEdits = async (
               </div>
             )}
 
-            <div className="max-h-[calc(90vh-10rem)] overflow-y-auto px-6 py-2 pb-6">
+            <div className="max-h-[calc(90vh-10rem)] overflow-y-auto overflow-x-hidden px-6 py-2 pb-6">
               <div className="grid gap-3 sm:grid-cols-2">
                 {/* Full name - required */}
                   <div className="space-y-1.5 sm:col-span-2">
@@ -796,8 +796,8 @@ const updateMemberQuickEdits = async (
                   </div>
                 )}
 
-                {/* Create login account checkbox */}
-                <div className="space-y-1.5 sm:col-span-2">
+                {/* Create login account checkbox - full width on all screens */}
+                <div className="col-span-2 sm:col-span-2">
                   <div className="flex items-center gap-2">
                     <Checkbox
                       id="member-create-login"
@@ -820,77 +820,78 @@ const updateMemberQuickEdits = async (
                   </div>
                 </div>
 
-                {/* Password - only when creating login account */}
+                {/* Password fields - side-by-side on mobile, stacked on sm+ */}
                 {createLoginAccount && (
-                  <div className="space-y-1.5 sm:col-span-2">
-                    <Label htmlFor="member-password">
-                      Password <span className="text-destructive">*</span>
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id="member-password"
-                        type={showNewPassword ? "text" : "password"}
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="Min. 8 characters"
-                        className="pr-10"
-                        required
-                        minLength={8}
-                        aria-required="true"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2"
-                        onClick={() => setShowNewPassword(!showNewPassword)}
-                        aria-label={showNewPassword ? "Hide password" : "Show password"}
-                      >
-                        {showNewPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </Button>
+                  <div className="col-span-2 grid grid-cols-2 gap-3 sm:block">
+                    {/* Password */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="member-password">
+                        Password <span className="text-destructive">*</span>
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="member-password"
+                          type={showNewPassword ? "text" : "password"}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="Min. 8 characters"
+                          className="pr-10"
+                          required
+                          minLength={8}
+                          aria-required="true"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                          aria-label={showNewPassword ? "Hide password" : "Show password"}
+                        >
+                          {showNewPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                )}
 
-                {/* Confirm Password - only when creating login account */}
-                {createLoginAccount && (
-                  <div className="space-y-1.5 sm:col-span-2">
-                    <Label htmlFor="member-password-confirm">
-                      Confirm password <span className="text-destructive">*</span>
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id="member-password-confirm"
-                        type={showNewPasswordConfirm ? "text" : "password"}
-                        value={newPasswordConfirm}
-                        onChange={(e) => setNewPasswordConfirm(e.target.value)}
-                        placeholder="Re-enter password"
-                        className="pr-10"
-                        required
-                        aria-required="true"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2"
-                        onClick={() => setShowNewPasswordConfirm(!showNewPasswordConfirm)}
-                        aria-label={
-                          showNewPasswordConfirm
-                            ? "Hide confirm password"
-                            : "Show confirm password"
-                        }
-                      >
-                        {showNewPasswordConfirm ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </Button>
+                    {/* Confirm Password */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="member-password-confirm">
+                        Confirm password <span className="text-destructive">*</span>
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="member-password-confirm"
+                          type={showNewPasswordConfirm ? "text" : "password"}
+                          value={newPasswordConfirm}
+                          onChange={(e) => setNewPasswordConfirm(e.target.value)}
+                          placeholder="Re-enter password"
+                          className="pr-10"
+                          required
+                          aria-required="true"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2"
+                          onClick={() => setShowNewPasswordConfirm(!showNewPasswordConfirm)}
+                          aria-label={
+                            showNewPasswordConfirm
+                              ? "Hide confirm password"
+                              : "Show confirm password"
+                          }
+                        >
+                          {showNewPasswordConfirm ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -910,85 +911,85 @@ const updateMemberQuickEdits = async (
                         : "Set profile picture"}
                     </Button>
 
-                    {showOptionalFields && (
-                      <div className="mt-3 rounded-lg border border-border/70 bg-muted/20 p-3">
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-sm">Profile picture</Label>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-8 px-2 text-xs"
-                              onClick={() => setAvatarVariant((v) => v + 1)}
-                            >
-                              Refresh options
-                            </Button>
-                          </div>
+                      {showOptionalFields && (
+                        <div className="mt-3 rounded-lg border border-border/70 bg-muted/20 p-3 max-w-full">
+                          <div className="space-y-3">
+                           <div className="flex items-center justify-between">
+                             <Label className="text-sm">Profile picture</Label>
+                             <Button
+                               type="button"
+                               variant="outline"
+                               size="sm"
+                               className="h-8 px-2 text-xs"
+                               onClick={() => setAvatarVariant((v) => v + 1)}
+                             >
+                               Refresh options
+                             </Button>
+                           </div>
 
-                          <div className="flex items-center gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-8 px-2 text-xs"
-                              onClick={() => setNewAvatarUrl("initials")}
-                            >
-                              Use initials
-                            </Button>
-                            {newAvatarUrl && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 px-2 text-xs"
-                                onClick={() => setNewAvatarUrl("")}
-                              >
-                                Clear
-                              </Button>
-                            )}
-                          </div>
+                           <div className="flex items-center gap-2">
+                             <Button
+                               type="button"
+                               variant="outline"
+                               size="sm"
+                               className="h-8 px-2 text-xs"
+                               onClick={() => setNewAvatarUrl("initials")}
+                             >
+                               Use initials
+                             </Button>
+                             {newAvatarUrl && (
+                               <Button
+                                 type="button"
+                                 variant="ghost"
+                                 size="sm"
+                                 className="h-8 px-2 text-xs"
+                                 onClick={() => setNewAvatarUrl("")}
+                               >
+                                 Clear
+                               </Button>
+                             )}
+                           </div>
 
-                          <div className="rounded-lg border border-border/60 bg-background/70 p-2">
-                            <div className="flex gap-2 overflow-x-auto pb-1">
-                              {avatarOptions.map((option, index) => {
-                                const isSelected = newAvatarUrl === option;
-                                return (
-                                  <button
-                                    key={option}
-                                    type="button"
-                                    className={cn(
-                                      "shrink-0 rounded-lg border p-1 transition-all",
-                                      "focus:outline-none focus:ring-2 focus:ring-primary/40",
-                                      isSelected
-                                        ? "border-primary bg-primary/10 shadow-sm"
-                                        : "border-border/70 hover:border-primary/40 hover:bg-accent/40",
-                                    )}
-                                    onClick={() => setNewAvatarUrl(option)}
-                                    title={`Select avatar ${index + 1}`}
-                                  >
-                                    <div
-                                      className="h-12 w-12 rounded-md bg-cover bg-center"
-                                      style={{ backgroundImage: `url(${option})` }}
-                                      aria-label={`Avatar option ${index + 1}`}
-                                    />
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
+                           <div className="rounded-lg border border-border/60 bg-background/70 p-2 max-w-full">
+                             <div className="flex w-full flex-wrap gap-2 pb-1 sm:overflow-x-auto sm:flex-nowrap">
+                               {avatarOptions.map((option, index) => {
+                                 const isSelected = newAvatarUrl === option;
+                                 return (
+                                   <button
+                                     key={option}
+                                     type="button"
+                                     className={cn(
+                                       "shrink-0 rounded-lg border p-1 transition-all",
+                                       "focus:outline-none focus:ring-2 focus:ring-primary/40",
+                                       isSelected
+                                         ? "border-primary bg-primary/10 shadow-sm"
+                                         : "border-border/70 hover:border-primary/40 hover:bg-accent/40",
+                                     )}
+                                     onClick={() => setNewAvatarUrl(option)}
+                                     title={`Select avatar ${index + 1}`}
+                                   >
+                                     <div
+                                       className="h-12 w-12 rounded-md bg-cover bg-center"
+                                       style={{ backgroundImage: `url(${option})` }}
+                                       aria-label={`Avatar option ${index + 1}`}
+                                     />
+                                   </button>
+                                 );
+                               })}
+                             </div>
+                           </div>
 
-                          <p className="text-xs text-muted-foreground">
-                            Current:{" "}
-                            {newAvatarUrl === "initials"
-                              ? getNameInitials(newName, newEmail)
-                              : newAvatarUrl
-                                ? "Custom avatar selected"
-                                : "No selection"}
-                          </p>
-                        </div>
-                      </div>
-                    )}
+                           <p className="text-xs text-muted-foreground">
+                             Current:{" "}
+                             {newAvatarUrl === "initials"
+                               ? getNameInitials(newName, newEmail)
+                               : newAvatarUrl
+                                 ? "Custom avatar selected"
+                                 : "No selection"}
+                           </p>
+                         </div>
+                       </div>
+                     )}
                   </div>
                 )}
               </div>

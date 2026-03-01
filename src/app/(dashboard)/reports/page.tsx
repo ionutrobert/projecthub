@@ -358,11 +358,11 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="space-y-4 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div className="space-y-3 sm:space-y-4 animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Reports</h1>
-          <p className="text-muted-foreground text-sm">Operational analytics from live data.</p>
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Reports</h1>
+          <p className="text-muted-foreground text-[10px] sm:text-sm">Operational analytics from live data.</p>
         </div>
         <div className="flex gap-2">
           <div className="flex rounded-md border border-border/60">
@@ -370,7 +370,7 @@ export default function ReportsPage() {
               <button
                 key={range}
                 onClick={() => setTimeRange(range)}
-                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`px-3 py-1 text-[10px] font-medium transition-colors sm:px-3 sm:py-1.5 sm:text-xs ${
                   timeRange === range
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:text-foreground"
@@ -384,8 +384,9 @@ export default function ReportsPage() {
             variant="outline"
             size="sm"
             onClick={handleExport}
+            className="text-[10px] sm:text-xs"
           >
-            <Download className="h-3.5 w-3.5 mr-1.5" />
+            <Download className="h-3 w-3 mr-1 sm:h-3.5 sm:w-3.5 sm:mr-1.5" />
             Export
           </Button>
         </div>
@@ -399,32 +400,32 @@ export default function ReportsPage() {
         </Card>
       ) : (
         <>
-          <div className="grid gap-3 grid-cols-2 lg:grid-cols-2">
+          <div className="grid gap-2 sm:gap-3 grid-cols-2 sm:grid-cols-2 lg:grid-cols-2">
             <Link href="/projects" className="block">
-              <Card className="glass card-hover py-3 h-full cursor-pointer hover:border-primary/50 transition-colors">
-                <CardHeader className="pb-1">
-                  <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                    <BarChart3 className="h-3 w-3" /> Projects
+              <Card className="glass card-hover py-2 sm:py-3 h-full cursor-pointer hover:border-primary/50 transition-colors">
+                <CardHeader className="pb-0.5 sm:pb-1">
+                  <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <BarChart3 className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> Projects
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <div className="text-2xl font-bold">{metrics.totalProjects}</div>
-                  <p className="text-xs text-muted-foreground">
+                  <div className="text-xl font-bold sm:text-2xl">{metrics.totalProjects}</div>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">
                     {metrics.activeProjects} active
                   </p>
                 </CardContent>
               </Card>
             </Link>
             <Link href="/projects?status=completed" className="block">
-              <Card className="glass card-hover py-3 h-full cursor-pointer hover:border-primary/50 transition-colors">
-                <CardHeader className="pb-1">
-                  <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3 w-3" /> Completion
+              <Card className="glass card-hover py-2 sm:py-3 h-full cursor-pointer hover:border-primary/50 transition-colors">
+                <CardHeader className="pb-0.5 sm:pb-1">
+                  <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <CheckCircle2 className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> Completion
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <div className="text-2xl font-bold">{metrics.completionRate}%</div>
-                  <p className="text-xs text-muted-foreground">
+                  <div className="text-xl font-bold sm:text-2xl">{metrics.completionRate}%</div>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">
                     {metrics.completedProjects} projects
                   </p>
                 </CardContent>
@@ -432,47 +433,47 @@ export default function ReportsPage() {
             </Link>
           </div>
 
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-3">
+          <div className="grid gap-2 sm:gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-3">
             <Link href="/team" className="block">
-              <Card className="glass card-hover py-3 h-full cursor-pointer hover:border-primary/50 transition-colors">
-                <CardHeader className="pb-1">
-                  <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                    <Users className="h-3 w-3" /> Team
+              <Card className="glass card-hover py-2 sm:py-3 h-full cursor-pointer hover:border-primary/50 transition-colors">
+                <CardHeader className="pb-0.5 sm:pb-1">
+                  <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <Users className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> Team
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <div className="text-2xl font-bold">{members.length}</div>
-                  <p className="text-xs text-muted-foreground">
+                  <div className="text-xl font-bold sm:text-2xl">{members.length}</div>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">
                     {busyMembers.length} roles
                   </p>
                 </CardContent>
               </Card>
             </Link>
             <Link href="/clients" className="block">
-              <Card className="glass card-hover py-3 h-full cursor-pointer hover:border-primary/50 transition-colors">
-                <CardHeader className="pb-1">
-                  <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                    <Users className="h-3 w-3" /> Clients
+              <Card className="glass card-hover py-2 sm:py-3 h-full cursor-pointer hover:border-primary/50 transition-colors">
+                <CardHeader className="pb-0.5 sm:pb-1">
+                  <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <Users className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> Clients
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <div className="text-2xl font-bold">{clients.length}</div>
-                  <p className="text-xs text-muted-foreground">
+                  <div className="text-xl font-bold sm:text-2xl">{clients.length}</div>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">
                     {metrics.projectsWithClients} linked
                   </p>
                 </CardContent>
               </Card>
             </Link>
             <Link href="/tasks?status=in-progress" className="block col-span-2 md:col-span-1 lg:col-span-1">
-              <Card className="glass card-hover py-3 h-full cursor-pointer hover:border-primary/50 transition-colors">
-                <CardHeader className="pb-1">
-                  <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                    <Clock className="h-3 w-3" /> Tasks Active
+              <Card className="glass card-hover py-2 sm:py-3 h-full cursor-pointer hover:border-primary/50 transition-colors">
+                <CardHeader className="pb-0.5 sm:pb-1">
+                  <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <Clock className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> Tasks Active
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <div className="text-2xl font-bold">{metrics.taskInProgress}</div>
-                  <p className="text-xs text-muted-foreground">
+                  <div className="text-xl font-bold sm:text-2xl">{metrics.taskInProgress}</div>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">
                     {metrics.taskTodo} pending
                   </p>
                 </CardContent>
@@ -480,14 +481,14 @@ export default function ReportsPage() {
             </Link>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-2 sm:gap-3 md:grid-cols-2 lg:grid-cols-4">
             <Card className="glass">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Task Status</CardTitle>
+              <CardHeader className="pb-1.5">
+                <CardTitle className="text-[10px] sm:text-sm">Task Status</CardTitle>
               </CardHeader>
               <CardContent>
                 {taskStatusData.length > 0 ? (
-                  <div className="h-[180px]">
+                  <div className="h-[150px] sm:h-[180px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
@@ -517,7 +518,7 @@ export default function ReportsPage() {
                     </ResponsiveContainer>
                   </div>
                 ) : (
-                  <div className="h-[180px] flex items-center justify-center text-muted-foreground text-sm">
+                  <div className="h-[150px] sm:h-[180px] flex items-center justify-center text-muted-foreground text-[10px] sm:text-sm">
                     No data
                   </div>
                 )}
@@ -525,12 +526,12 @@ export default function ReportsPage() {
             </Card>
 
             <Card className="glass">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">By Priority</CardTitle>
+              <CardHeader className="pb-1.5">
+                <CardTitle className="text-[10px] sm:text-sm">By Priority</CardTitle>
               </CardHeader>
               <CardContent>
                 {taskPriorityData.length > 0 ? (
-                  <div className="h-[180px]">
+                  <div className="h-[150px] sm:h-[180px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={taskPriorityData} layout="vertical">
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border)/0.5)" />
@@ -553,7 +554,7 @@ export default function ReportsPage() {
                     </ResponsiveContainer>
                   </div>
                 ) : (
-                  <div className="h-[180px] flex items-center justify-center text-muted-foreground text-sm">
+                  <div className="h-[150px] sm:h-[180px] flex items-center justify-center text-muted-foreground text-[10px] sm:text-sm">
                     No data
                   </div>
                 )}
@@ -561,12 +562,12 @@ export default function ReportsPage() {
             </Card>
 
             <Card className="glass">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Projects</CardTitle>
+              <CardHeader className="pb-1.5">
+                <CardTitle className="text-[10px] sm:text-sm">Projects</CardTitle>
               </CardHeader>
               <CardContent>
                 {projectStatusData.length > 0 ? (
-                  <div className="h-[180px]">
+                  <div className="h-[150px] sm:h-[180px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={projectStatusData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border)/0.5)" />
@@ -589,7 +590,7 @@ export default function ReportsPage() {
                     </ResponsiveContainer>
                   </div>
                 ) : (
-                  <div className="h-[180px] flex items-center justify-center text-muted-foreground text-sm">
+                  <div className="h-[150px] sm:h-[180px] flex items-center justify-center text-muted-foreground text-[10px] sm:text-sm">
                     No data
                   </div>
                 )}
@@ -597,26 +598,26 @@ export default function ReportsPage() {
             </Card>
 
             <Card className="glass">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Task Overview</CardTitle>
+              <CardHeader className="pb-1.5">
+                <CardTitle className="text-[10px] sm:text-sm">Task Overview</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded border border-border/60 p-2 text-center">
-                    <p className="text-xl font-bold">{metrics.taskTodo}</p>
-                    <p className="text-xs text-muted-foreground">To Do</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div className="rounded border border-border/60 p-1.5 text-center">
+                    <p className="text-lg font-bold sm:text-xl">{metrics.taskTodo}</p>
+                    <p className="text-[10px] text-muted-foreground">To Do</p>
                   </div>
-                  <div className="rounded border border-border/60 p-2 text-center">
-                    <p className="text-xl font-bold text-blue-500">{metrics.taskInProgress}</p>
-                    <p className="text-xs text-muted-foreground">In Progress</p>
+                  <div className="rounded border border-border/60 p-1.5 text-center">
+                    <p className="text-lg font-bold text-blue-500 sm:text-xl">{metrics.taskInProgress}</p>
+                    <p className="text-[10px] text-muted-foreground">In Progress</p>
                   </div>
-                  <div className="rounded border border-border/60 p-2 text-center">
-                    <p className="text-xl font-bold text-green-500">{metrics.taskDone}</p>
-                    <p className="text-xs text-muted-foreground">Done</p>
+                  <div className="rounded border border-border/60 p-1.5 text-center">
+                    <p className="text-lg font-bold text-green-500 sm:text-xl">{metrics.taskDone}</p>
+                    <p className="text-[10px] text-muted-foreground">Done</p>
                   </div>
-                  <div className="rounded border border-border/60 p-2 text-center">
-                    <p className="text-xl font-bold text-red-500">{overdueTasks}</p>
-                    <p className="text-xs text-muted-foreground">Overdue</p>
+                  <div className="rounded border border-border/60 p-1.5 text-center">
+                    <p className="text-lg font-bold text-red-500 sm:text-xl">{overdueTasks}</p>
+                    <p className="text-[10px] text-muted-foreground">Overdue</p>
                   </div>
                 </div>
               </CardContent>
@@ -625,25 +626,25 @@ export default function ReportsPage() {
 
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
             <Card className="glass">
-              <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                <CardTitle className="text-sm flex items-center gap-1.5">
-                  <Calendar className="h-3.5 w-3.5" /> Upcoming Deadlines
+              <CardHeader className="pb-1.5 flex flex-row items-center justify-between">
+                <CardTitle className="text-xs flex items-center gap-1">
+                  <Calendar className="h-3 w-3" /> Upcoming Deadlines
                 </CardTitle>
-                <Link href="/projects" className="text-xs text-primary hover:underline">
+                <Link href="/projects" className="text-[10px] text-primary hover:underline">
                   View all
                 </Link>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-1.5">
                 {nextDeadlines.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-4 text-center">No upcoming deadlines.</p>
+                  <p className="text-xs text-muted-foreground py-3 text-center">No upcoming deadlines.</p>
                 ) : (
                   nextDeadlines.map((project) => (
                     <Link
                       key={project.id}
                       href={`/projects/${project.id}`}
-                      className="flex items-center justify-between rounded border border-border/60 px-2 py-1.5 hover:border-primary/50 transition-colors"
+                      className="flex items-center justify-between rounded border border-border/60 px-1.5 py-1 hover:border-primary/50 transition-colors"
                     >
-                      <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
                         <Badge
                           variant={
                             project.status === "active"
@@ -652,13 +653,13 @@ export default function ReportsPage() {
                               ? "secondary"
                               : "outline"
                           }
-                          className="text-[10px] px-1.5 py-0 capitalize shrink-0"
+                          className="text-[9px] px-1 py-0 capitalize shrink-0"
                         >
                           {project.status}
                         </Badge>
-                        <span className="text-sm truncate">{project.name}</span>
+                        <span className="text-xs truncate">{project.name}</span>
                       </div>
-                      <span className={`text-xs whitespace-nowrap ml-2 ${getUrgencyClass(project.deadline)}`}>
+                      <span className={`text-[10px] whitespace-nowrap ${getUrgencyClass(project.deadline)}`}>
                         {formatDaysUntil(project.deadline)}
                       </span>
                     </Link>
@@ -668,25 +669,25 @@ export default function ReportsPage() {
             </Card>
 
             <Card className="glass">
-              <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                <CardTitle className="text-sm flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5" /> Tasks Due Soon
+              <CardHeader className="pb-1.5 flex flex-row items-center justify-between">
+                <CardTitle className="text-xs flex items-center gap-1">
+                  <Clock className="h-3 w-3" /> Tasks Due Soon
                 </CardTitle>
-                <Link href="/tasks" className="text-xs text-primary hover:underline">
+                <Link href="/tasks" className="text-[10px] text-primary hover:underline">
                   View all
                 </Link>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-1.5">
                 {upcomingTasks.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-4 text-center">No tasks due soon.</p>
+                  <p className="text-xs text-muted-foreground py-3 text-center">No tasks due soon.</p>
                 ) : (
                   upcomingTasks.map((task) => (
                     <Link
                       key={task.id}
                       href={`/tasks?status=in-progress`}
-                      className="flex items-center justify-between rounded border border-border/60 px-2 py-1.5 hover:border-primary/50 transition-colors"
+                      className="flex items-center justify-between rounded border border-border/60 px-1.5 py-1 hover:border-primary/50 transition-colors"
                     >
-                      <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
                         <Badge
                           variant={
                             task.priority === "urgent"
@@ -697,13 +698,13 @@ export default function ReportsPage() {
                               ? "outline"
                               : "secondary"
                           }
-                          className="text-[10px] px-1.5 py-0 capitalize shrink-0"
+                          className="text-[9px] px-1 py-0 capitalize shrink-0"
                         >
                           {task.priority}
                         </Badge>
-                        <span className="text-sm truncate">{task.title}</span>
+                        <span className="text-xs truncate">{task.title}</span>
                       </div>
-                      <span className={`text-xs whitespace-nowrap ml-2 ${getUrgencyClass(task.due_date)}`}>
+                      <span className={`text-[10px] whitespace-nowrap ${getUrgencyClass(task.due_date)}`}>
                         {formatDaysUntil(task.due_date)}
                       </span>
                     </Link>
@@ -713,29 +714,29 @@ export default function ReportsPage() {
             </Card>
 
             <Card className="glass">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-1.5">
-                  <Users className="h-3.5 w-3.5" /> Team Workload
+              <CardHeader className="pb-1.5">
+                <CardTitle className="text-xs flex items-center gap-1">
+                  <Users className="h-3 w-3" /> Team Workload
                 </CardTitle>
-                <Link href="/team" className="text-xs text-primary hover:underline">
+                <Link href="/team" className="text-[10px] text-primary hover:underline">
                   View all
                 </Link>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-1.5">
                 {teamWorkload.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-4 text-center">No assigned tasks.</p>
+                  <p className="text-xs text-muted-foreground py-3 text-center">No assigned tasks.</p>
                 ) : (
                   teamWorkload.map((member) => (
                     <Link
                       key={member.id}
                       href={`/team/${member.id}`}
-                      className="rounded border border-border/60 px-2 py-1.5 hover:border-primary/50 transition-colors block"
+                      className="rounded border border-border/60 px-1.5 py-1 hover:border-primary/50 transition-colors block"
                     >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm truncate font-medium">{member.name}</span>
-                        <span className="text-xs text-muted-foreground">{member.role}</span>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-xs truncate font-medium">{member.name}</span>
+                        <span className="text-[10px] text-muted-foreground">{member.role}</span>
                       </div>
-                      <div className="flex gap-1.5 text-xs">
+                      <div className="flex gap-1 text-[10px]">
                         <span className="text-gray-500">{member.todo} todo</span>
                         <span className="text-blue-500">{member.inProgress} active</span>
                         <span className="text-green-500">{member.done} done</span>
@@ -748,16 +749,16 @@ export default function ReportsPage() {
             </Card>
 
             <Card className="glass">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-1.5">
-                  <AlertCircle className="h-3.5 w-3.5 text-red-500" /> Overdue Items
+              <CardHeader className="pb-1.5">
+                <CardTitle className="text-xs flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3 text-red-500" /> Overdue Items
                 </CardTitle>
-                <Link href="/tasks?filter=overdue" className="text-xs text-primary hover:underline">
+                <Link href="/tasks?filter=overdue" className="text-[10px] text-primary hover:underline">
                   View all
                 </Link>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between text-sm">
+              <CardContent className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Overdue Projects</span>
                   <span className="font-semibold text-red-500">
                     {nextDeadlines.filter(p => {
@@ -766,17 +767,17 @@ export default function ReportsPage() {
                     }).length}
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Overdue Tasks</span>
                   <span className="font-semibold text-red-500">{overdueTasks}</span>
                 </div>
-                <div className="border-t pt-2 mt-2">
-                  <p className="text-xs text-muted-foreground mb-2">Needs Attention</p>
+                <div className="border-t pt-1.5 mt-1.5">
+                  <p className="text-[10px] text-muted-foreground mb-1.5">Needs Attention</p>
                   {overdueTasks > 0 || nextDeadlines.filter(p => {
                     const days = getDaysUntil(p.deadline)
                     return days !== null && days < 0
                   }).length > 0 ? (
-                    <div className="space-y-1.5">
+                    <div className="space-y-1">
                       {nextDeadlines
                         .filter(p => {
                           const days = getDaysUntil(p.deadline)
@@ -784,7 +785,7 @@ export default function ReportsPage() {
                         })
                         .slice(0, 2)
                         .map(p => (
-                          <div key={p.id} className="text-xs text-red-500 truncate">
+                          <div key={p.id} className="text-[10px] text-red-500 truncate">
                             • {p.name} ({formatDaysUntil(p.deadline)})
                           </div>
                         ))}
@@ -796,47 +797,47 @@ export default function ReportsPage() {
                         })
                         .slice(0, 2)
                         .map(t => (
-                          <div key={t.id} className="text-xs text-red-500 truncate">
+                          <div key={t.id} className="text-[10px] text-red-500 truncate">
                             • {t.title} ({formatDaysUntil(t.due_date)})
                           </div>
                         ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-green-500">All caught up!</p>
+                    <p className="text-[10px] text-green-500">All caught up!</p>
                   )}
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-2 sm:gap-3 md:grid-cols-2">
             <Card className="glass">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-1.5">
-                  <TrendingUp className="h-3.5 w-3.5" /> Project Trends
+              <CardHeader className="pb-1.5">
+                <CardTitle className="text-[10px] sm:text-sm flex items-center gap-1">
+                  <TrendingUp className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> Project Trends
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between text-sm">
+              <CardContent className="space-y-2">
+                <div className="flex items-center justify-between text-xs sm:text-sm">
                   <span className="text-muted-foreground">Active Projects</span>
                   <span className="font-semibold">{metrics.activeProjects}</span>
                 </div>
-                <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center justify-between text-xs sm:text-sm">
                   <span className="text-muted-foreground">On Hold</span>
                   <span className="font-semibold text-amber-500">{metrics.onHoldProjects}</span>
                 </div>
-                <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center justify-between text-xs sm:text-sm">
                   <span className="text-muted-foreground">Completed</span>
                   <span className="font-semibold text-green-500">{metrics.completedProjects}</span>
                 </div>
-                <div className="border-t pt-2 mt-2">
-                  <div className="flex items-center justify-between text-sm">
+                <div className="border-t pt-1.5 mt-1.5">
+                  <div className="flex items-center justify-between text-xs sm:text-sm">
                     <span className="text-muted-foreground">Completion Rate</span>
-                    <span className="font-bold text-lg">{metrics.completionRate}%</span>
+                    <span className="font-bold text-base sm:text-lg">{metrics.completionRate}%</span>
                   </div>
-                  <div className="w-full bg-secondary rounded-full h-2 mt-1">
+                  <div className="w-full bg-secondary rounded-full h-1.5 sm:h-2 mt-0.5 sm:mt-1">
                     <div
-                      className="bg-green-500 h-2 rounded-full transition-all"
+                      className="bg-green-500 h-1.5 sm:h-2 rounded-full transition-all"
                       style={{ width: `${metrics.completionRate}%` }}
                     />
                   </div>
@@ -845,32 +846,32 @@ export default function ReportsPage() {
             </Card>
 
             <Card className="glass">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-1.5">
-                  <AlertCircle className="h-3.5 w-3.5" /> Task Health
+              <CardHeader className="pb-1.5">
+                <CardTitle className="text-[10px] sm:text-sm flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> Task Health
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between text-sm">
+              <CardContent className="space-y-2">
+                <div className="flex items-center justify-between text-xs sm:text-sm">
                   <span className="text-muted-foreground">Total Tasks</span>
                   <span className="font-semibold">{filteredTasks.length}</span>
                 </div>
-                <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center justify-between text-xs sm:text-sm">
                   <span className="text-muted-foreground">Overdue</span>
                   <span className="font-semibold text-red-500">{overdueTasks}</span>
                 </div>
-                <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center justify-between text-xs sm:text-sm">
                   <span className="text-muted-foreground">In Progress</span>
                   <span className="font-semibold text-blue-500">{metrics.taskInProgress}</span>
                 </div>
-                <div className="border-t pt-2 mt-2">
-                  <div className="flex items-center justify-between text-sm">
+                <div className="border-t pt-1.5 mt-1.5">
+                  <div className="flex items-center justify-between text-xs sm:text-sm">
                     <span className="text-muted-foreground">Task Completion</span>
-                    <span className="font-bold text-lg">{metrics.taskCompletion}%</span>
+                    <span className="font-bold text-base sm:text-lg">{metrics.taskCompletion}%</span>
                   </div>
-                  <div className="w-full bg-secondary rounded-full h-2 mt-1">
+                  <div className="w-full bg-secondary rounded-full h-1.5 sm:h-2 mt-0.5 sm:mt-1">
                     <div
-                      className="bg-blue-500 h-2 rounded-full transition-all"
+                      className="bg-blue-500 h-1.5 sm:h-2 rounded-full transition-all"
                       style={{ width: `${metrics.taskCompletion}%` }}
                     />
                   </div>
