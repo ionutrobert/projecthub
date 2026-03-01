@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import ProjectPreviewModal from "@/components/project-preview-modal";
+import ProjectFormModal from "@/components/project-form-modal";
 import MemberAvatar from "@/components/member-avatar";
 import { getNameInitials } from "@/lib/avatar";
 import { renderMarkdownHtml } from "@/lib/markdown";
@@ -88,6 +89,11 @@ interface Member {
   name: string;
   email: string;
   role: string;
+}
+
+interface Client {
+  id: string;
+  name: string;
 }
 
 type TableSortKey = "project" | "status" | "deadline" | "budget";
@@ -210,7 +216,9 @@ export default function ProjectsPage() {
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
+  const [addProjectOpen, setAddProjectOpen] = useState(false);
   const [loadingError, setLoadingError] = useState<string | null>(null);
   const [previewProject, setPreviewProject] = useState<Project | null>(null);
   const initialFilter = searchParams.get("status") || "all";
@@ -383,14 +391,28 @@ export default function ProjectsPage() {
     }
   }, []);
 
+  const fetchClients = useCallback(async () => {
+    try {
+      const { data } = await fetchJsonWithTimeout("/api/clients");
+      if (Array.isArray(data)) {
+        setClients(data);
+      } else {
+        setClients([]);
+      }
+    } catch {
+      setClients([]);
+    }
+  }, []);
+
   // Load data on auth ready and filter changes (functions declared above)
   useEffect(() => {
     if (!userLoading) {
       fetchProjects();
       fetchMembers();
       fetchStars();
+      fetchClients();
     }
-  }, [userLoading, fetchProjects, fetchMembers, fetchStars]);
+  }, [userLoading, fetchProjects, fetchMembers, fetchStars, fetchClients]);
 
   const handleStatusChange = async (project: Project) => {
     if (!canEdit) return;
@@ -647,9 +669,7 @@ export default function ProjectsPage() {
         </div>
         {canEdit && (
           <Button
-            onClick={() => {
-              router.push("/projects/new");
-            }}
+            onClick={() => setAddProjectOpen(true)}
             className="gap-2 shrink-0"
           >
             <Plus className="h-4 w-4" /> Add Project
@@ -1412,17 +1432,27 @@ export default function ProjectsPage() {
         </Card>
       )}
 
-      <ProjectPreviewModal
-        project={previewProject}
-        canEdit={canEdit}
-        availableMembers={dedupedMembers}
-        onClose={() => setPreviewProject(null)}
-        onProjectUpdated={(updated) => {
-          setProjects((prev) => prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
-          setPreviewProject((current) => (current && current.id === updated.id ? { ...current, ...updated } : current));
-        }}
-        onOpenProjectPage={(projectId) => router.push(`/projects/${projectId}`)}
-      />
-    </div>
-  );
-}
+       <ProjectPreviewModal
+         project={previewProject}
+         canEdit={canEdit}
+         availableMembers={dedupedMembers}
+         onClose={() => setPreviewProject(null)}
+         onProjectUpdated={(updated) => {
+           setProjects((prev) => prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
+           setPreviewProject((current) => (current && current.id === updated.id ? { ...current, ...updated } : current));
+         }}
+         onOpenProjectPage={(projectId) => router.push(`/projects/${projectId}`)}
+       />
+
+       <ProjectFormModal
+         open={addProjectOpen}
+         onOpenChange={setAddProjectOpen}
+         onSuccess={() => {
+           router.refresh();
+         }}
+         initialMembers={members}
+         initialClients={clients}
+       />
+     </div>
+   );
+ }
