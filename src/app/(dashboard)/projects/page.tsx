@@ -221,6 +221,7 @@ export default function ProjectsPage() {
   const [addProjectOpen, setAddProjectOpen] = useState(false);
   const [loadingError, setLoadingError] = useState<string | null>(null);
   const [previewProject, setPreviewProject] = useState<Project | null>(null);
+  const [toast, setToast] = useState<{ projectId: string; projectName: string } | null>(null);
   const initialFilter = searchParams.get("status") || "all";
   const initialSearch =
     searchParams.get("q") || searchParams.get("search") || "";
@@ -454,6 +455,12 @@ export default function ProjectsPage() {
     }
   };
 
+  const handleProjectCreated = (project: { id: string; name: string }) => {
+    setToast({ projectId: project.id, projectName: project.name });
+    // Auto-dismiss after 6 seconds
+    setTimeout(() => setToast(null), 6000);
+  };
+
 
   const getStatusStyles = (status: string) => {
     switch (status) {
@@ -676,6 +683,20 @@ export default function ProjectsPage() {
           </Button>
         )}
       </div>
+
+      {toast && (
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 flex items-center justify-between">
+          <p className="text-sm text-emerald-700 dark:text-emerald-400">
+            Project &quot;{toast.projectName}&quot; created successfully.
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => { router.push(`/projects/${toast.projectId}`); setToast(null); }}>
+              View Project
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setToast(null)}>Dismiss</Button>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="lg:hidden">
@@ -1444,15 +1465,16 @@ export default function ProjectsPage() {
          onOpenProjectPage={(projectId) => router.push(`/projects/${projectId}`)}
        />
 
-       <ProjectFormModal
-         open={addProjectOpen}
-         onOpenChange={setAddProjectOpen}
-         onSuccess={() => {
-           router.refresh();
-         }}
-         initialMembers={members}
-         initialClients={clients}
-       />
+        <ProjectFormModal
+          open={addProjectOpen}
+          onOpenChange={setAddProjectOpen}
+          onSuccess={(project) => {
+            handleProjectCreated(project);
+            router.refresh();
+          }}
+          initialMembers={members}
+          initialClients={clients}
+        />
      </div>
    );
  }
