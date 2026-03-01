@@ -1279,6 +1279,30 @@ export default function ProjectsPage() {
                                   ? `${project.task_count} task${project.task_count === 1 ? "" : "s"}`
                                   : "No task count"}
                               </p>
+                              {/* Tablet-only inline member preview (hidden on xl where separate column shows) */}
+                              {assigneeMembers.length > 0 && (
+                                <div className="mt-1 hidden md:flex xl:hidden items-center gap-1.5">
+                                  <div className="flex -space-x-1">
+                                    {assigneeMembers.slice(0, 3).map((member) => (
+                                      <div key={member.id} className="rounded-full border border-background" title={member.name}>
+                                        <MemberAvatar
+                                          name={member.name}
+                                          email={member.email}
+                                          userId={member.user_id}
+                                          sizeClass="h-4 w-4"
+                                          textClass="text-[8px]"
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+                                  {assigneeMembers.length > 3 && (
+                                    <span className="text-[9px] text-muted-foreground">+{assigneeMembers.length - 3}</span>
+                                  )}
+                                  <span className="truncate text-[10px] text-muted-foreground max-w-[60px]">
+                                    {assignees.slice(0, 2).join(", ")}{assignees.length > 2 ? "…" : ""}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </td>
