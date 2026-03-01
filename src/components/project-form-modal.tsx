@@ -56,8 +56,10 @@ import MemberAvatar from "@/components/member-avatar";
 
 type Member = {
   id: string;
+  user_id?: string | null;
   name: string;
-  email: string | null;
+  email: string;
+  role: string;
   avatar_url?: string | null;
 };
 
@@ -65,6 +67,26 @@ type Client = {
   id: string;
   name: string;
 };
+
+interface Project {
+  id: string;
+  name: string;
+  status: "active" | "in-progress" | "on-hold" | "completed" | "closed";
+  client_name?: string | null;
+  deadline: string | null;
+  budget: number | null;
+  labels?: string[] | null;
+  description: string | null;
+  created_by: string | null;
+  created_at: string;
+  start_date?: string | null;
+  color?: string;
+  icon?: string;
+  project_members?: { members: Member }[];
+  progress?: number;
+  milestones?: { label: string; date: string; completed?: boolean }[];
+  task_count?: number;
+}
 
 type ProjectStatus = "active" | "in-progress" | "on-hold" | "completed" | "closed";
 
@@ -223,7 +245,7 @@ export default function ProjectFormModal({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess?: (project: { id: string; name: string }) => void;
+  onSuccess?: (project: Project) => void;
   initialMembers: Member[];
   initialClients: Client[];
 }) {
@@ -249,14 +271,17 @@ export default function ProjectFormModal({
   const [projectColor, setProjectColor] = useState("#8B5CF6");
   const [projectIcon, setProjectIcon] = useState<ProjectIcon>("FolderKanban");
 
-  // Tasks
-  const [tasksOpen, setTasksOpen] = useState(false);
-  const [newTasks, setNewTasks] = useState<
-    { title: string; priority: "low" | "medium" | "high" | "urgent"; due_date: string | null }[]
-  >([]);
-  const [newTaskTitle, setNewTaskTitle] = useState("");
-  const [newTaskPriority, setNewTaskPriority] = useState<"low" | "medium" | "high" | "urgent">("medium");
-  const [newTaskDueDate, setNewTaskDueDate] = useState<Date | undefined>(undefined);
+   // Tasks
+   const [tasksOpen, setTasksOpen] = useState(false);
+   const [newTasks, setNewTasks] = useState<
+     { title: string; priority: "low" | "medium" | "high" | "urgent"; due_date: string | null }[]
+   >([]);
+   const [newTaskTitle, setNewTaskTitle] = useState("");
+   const [newTaskPriority, setNewTaskPriority] = useState<"low" | "medium" | "high" | "urgent">("medium");
+   const [newTaskDueDate, setNewTaskDueDate] = useState<Date | undefined>(undefined);
+
+   // Customize section
+   const [customizeOpen, setCustomizeOpen] = useState(false);
 
   const resetForm = () => {
     setName("");
@@ -340,7 +365,7 @@ export default function ProjectFormModal({
           budget: budget ? Number(budget) : null,
           client_name: clientName.trim() || null,
           description: description.trim() || null,
-          labels: labels.length > 0 ? labels : null,
+          labels: labels,
           member_ids: memberIds,
           color: projectColor,
           icon: projectIcon,
@@ -373,7 +398,7 @@ export default function ProjectFormModal({
        }
 
        handleOpenChange(false);
-       onSuccess?.({ id: projectId, name: name });
+       onSuccess?.(projectData);
        router.refresh();
     } catch (err) {
       console.error(err);
@@ -408,7 +433,7 @@ export default function ProjectFormModal({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="z-[220] max-h-[92vh] overflow-y-auto bg-background/95 p-0 sm:max-h-[90vh] sm:max-w-2xl [&>button]:hidden">
+      <DialogContent className="z-[220] max-h-[92vh] overflow-y-auto bg-background/95 p-0 sm:max-h-[90vh] sm:max-w-4xl [&>button]:hidden">
          <Card className="glass relative w-full border-0 bg-transparent shadow-none">
            {/* Sticky Header */}
            <CardHeader className="sticky top-0 z-20 border-b border-border/60 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/80 pb-2 sm:pb-3">
@@ -421,414 +446,440 @@ export default function ProjectFormModal({
                <span className="text-base leading-none">×</span>
              </button>
              <DialogTitle className="text-lg font-semibold pr-8 sm:pr-0">Create New Project</DialogTitle>
-           </CardHeader>
+              {error && (
+                <div className="mt-2 rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-sm text-destructive">
+                  {error}
+                </div>
+              )}
+            </CardHeader>
 
-          {/* Scrollable Content */}
-          <CardContent className="space-y-6 p-6 pt-4 pb-24">
-            {error && (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                {error}
-              </div>
-            )}
+            {/* Scrollable Content */}
+            <CardContent className="p-6 pt-4 pb-24">
+             <div className="grid grid-cols-1 xl:grid-cols-2 gap-x-8 gap-y-6">
 
-            {/* Name */}
-            <div className="space-y-2">
-              <Label>
-                Name <span className="text-rose-500">*</span>
-              </Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Project name" />
-            </div>
+               {/* Row 1 */}
+               <div className="space-y-2">
+                 <Label>
+                   Name <span className="text-rose-500">*</span>
+                 </Label>
+                 <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Project name" />
+               </div>
+               <div className="space-y-2">
+                 <Label>Status</Label>
+                 <Select value={status} onValueChange={(v) => setStatus(v as ProjectStatus)}>
+                   <SelectTrigger>
+                     <SelectValue placeholder="Select status" />
+                   </SelectTrigger>
+                   <SelectContent>
+                     {STATUS_OPTIONS.map((s) => (
+                       <SelectItem key={s} value={s} className="capitalize">
+                         <div className="flex items-center gap-2">
+                           <span className={`h-2 w-2 rounded-full ${STATUS_COLORS[s]}`} />
+                           <span>{s.replace("-", " ")}</span>
+                         </div>
+                       </SelectItem>
+                     ))}
+                   </SelectContent>
+                 </Select>
+               </div>
 
-            {/* Status */}
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as ProjectStatus)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map((s) => (
-                    <SelectItem key={s} value={s} className="capitalize">
-                      <div className="flex items-center gap-2">
-                        <span className={`h-2 w-2 rounded-full ${STATUS_COLORS[s]}`} />
-                        <span>{s.replace("-", " ")}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Date Range */}
-            <div className="space-y-2">
-              <Label>
-                <span className="sm:hidden">Date</span>
-                <span className="hidden sm:inline">Date Range</span>
-              </Label>
-              <DateRangePicker
-                date={dateRange}
-                onDateChange={setDateRange}
-                numberOfMonths={1}
-                showPresets={false}
-                className="[&_button]:h-10 [&_button]:text-sm"
-              />
-              <p className="text-xs text-muted-foreground">{formatDateRange()}</p>
-            </div>
-
-            {/* Budget */}
-            <div className="space-y-2">
-              <Label>Budget</Label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
-                <Input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={budget}
-                  onChange={(e) => setBudget(e.target.value)}
-                  placeholder="0.00"
-                  className="pl-7"
-                />
-              </div>
-            </div>
-
-            {/* Client */}
-            <div className="space-y-2">
-              <Label>Client</Label>
-              <Popover open={clientPickerOpen} onOpenChange={setClientPickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={clientPickerOpen}
-                    className="w-full justify-between"
-                  >
-                    {clientName ? <span className="truncate">{clientName}</span> : <span className="text-muted-foreground">Select client</span>}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                  <Command>
-                    <div className="relative">
-                      <CommandInput
-                        ref={clientInputRef}
-                        placeholder="Search clients..."
-                        className="no-global-focus-ring h-10 border-0 outline-none ring-0 pr-8"
-                      />
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="absolute right-0 top-0 h-9 w-8"
-                        onClick={async () => {
-                          const val = clientInputRef.current?.value || "";
-                          if (val.trim()) {
-                            const newClient = await onQuickCreateClient(val.trim());
-                            if (newClient) {
-                              setClientName(newClient.name);
-                              setClientPickerOpen(false);
-                              if (clientInputRef.current) clientInputRef.current.value = "";
-                            }
-                          }
-                        }}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <CommandList className="max-h-[200px]">
-                      <CommandEmpty>No client found.</CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem
-                          value="__no_client__"
-                          onSelect={() => {
-                            setClientName("");
-                            setClientPickerOpen(false);
-                          }}
-                        >
-                          <Check className={cn("mr-2 h-4 w-4", !clientName ? "opacity-100" : "opacity-0")} />
-                          <span>No client</span>
-                        </CommandItem>
-                        {initialClients.map((client) => (
-                          <CommandItem
-                            key={client.id}
-                            value={client.name}
-                            onSelect={() => {
-                              setClientName(client.name);
-                              setClientPickerOpen(false);
-                            }}
-                          >
-                            <Check className={cn("mr-2 h-4 w-4", clientName === client.name ? "opacity-100" : "opacity-0")} />
-                            <span>{client.name}</span>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            {/* Description */}
-            <MarkdownEditor value={description} onChange={setDescription} />
-
-            {/* Labels */}
-            <div className="space-y-2">
-              <Label>Labels</Label>
-              <div className="flex flex-wrap gap-2 min-h-[42px] w-full rounded-lg border border-input bg-background px-3 py-2 text-sm transition-colors focus-within:outline-none focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary">
-                {labels.map((label) => (
-                  <Badge key={label} variant="secondary" className="flex items-center gap-1.5 h-7 px-2.5 py-0.5 text-xs font-medium">
-                    {label}
-                    <button
-                      type="button"
-                      onClick={() => setLabels(labels.filter((l) => l !== label))}
-                      className="ml-0.5 hover:text-rose-500 transition-colors"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-                 <input
-                   value={labelInput}
-                   onChange={(e) => setLabelInput(e.target.value)}
-                   onKeyDown={(e) => {
-                     if (e.key === "Enter" || e.key === ",") {
-                       e.preventDefault();
-                       handleAddLabel();
-                     }
-                   }}
-                   onBlur={handleAddLabel}
-                   placeholder={labels.length === 0 ? "Type and press Enter..." : ""}
-                   className="flex-1 min-w-[120px] bg-transparent outline-none border-0 ring-0 focus:ring-0 focus-visible:ring-0 text-sm placeholder:text-muted-foreground"
+               {/* Row 2 */}
+               <div className="space-y-2">
+                 <Label>
+                   <span className="sm:hidden">Date</span>
+                   <span className="hidden sm:inline">Date Range</span>
+                 </Label>
+                 <DateRangePicker
+                   date={dateRange}
+                   onDateChange={setDateRange}
+                   numberOfMonths={1}
+                   showPresets={false}
+                   className="[&_button]:h-10 [&_button]:text-sm"
                  />
-              </div>
-            </div>
-
-            {/* Members */}
-            <div className="space-y-2">
-              <Label>Team members</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-between">
-                    {memberIds.length > 0 ? (
-                      <div className="flex items-center gap-2 truncate">
-                        <div className="flex -space-x-2">
-                          {initialMembers
-                            .filter((m) => memberIds.includes(m.id))
-                            .slice(0, 3)
-                            .map((member) => (
-                              <MemberAvatar
-                                key={member.id}
-                                name={member.name}
-                                email={member.email}
-                                avatarUrl={member.avatar_url}
-                                ring={false}
-                                sizeClass="h-6 w-6"
-                                textClass="text-[8px]"
-                              />
-                            ))}
-                          {memberIds.length > 3 && (
-                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[8px]">
-                              +{memberIds.length - 3}
+                 <p className="text-xs text-muted-foreground">{formatDateRange()}</p>
+               </div>
+               <div className="space-y-2">
+                 <Label>Team members</Label>
+                 <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-between">
+                        {memberIds.length > 0 ? (
+                          <div className="flex items-center gap-2 truncate">
+                            <div className="flex -space-x-2">
+                              {initialMembers
+                                .filter((m) => memberIds.includes(m.id))
+                                .slice(0, 3)
+                                .map((member) => (
+                                  <MemberAvatar
+                                    key={member.id}
+                                    name={member.name}
+                                    email={member.email}
+                                    avatarUrl={member.avatar_url}
+                                    ring={false}
+                                    sizeClass="h-6 w-6"
+                                    textClass="text-[8px]"
+                                  />
+                                ))}
                             </div>
-                          )}
-                        </div>
-                        <span className="text-sm text-muted-foreground">{memberIds.length} selected</span>
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground">Select team members</span>
-                    )}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                 <PopoverContent className="w-[360px] p-0" align="start">
-                   <Command>
-                     <CommandInput placeholder="Search members..." className="h-11 border-0 ring-0 focus:ring-0 focus-visible:ring-0" />
-                    <CommandList className="max-h-[250px]">
-                      <CommandEmpty>No members found.</CommandEmpty>
-                      <CommandGroup>
-                        {initialMembers.map((member) => (
-                          <CommandItem
-                            key={member.id}
-                            value={`${member.name} ${member.email || ""}`}
-                            onSelect={() => {
-                              if (memberIds.includes(member.id)) {
-                                setMemberIds(memberIds.filter((id) => id !== member.id));
-                              } else {
-                                setMemberIds([...memberIds, member.id]);
-                              }
-                            }}
-                          >
-                            <Check className={cn("mr-2 h-4 w-4", memberIds.includes(member.id) ? "opacity-100" : "opacity-0")} />
-                            <MemberAvatar
-                              name={member.name}
-                              email={member.email}
-                              avatarUrl={member.avatar_url}
-                              sizeClass="h-8 w-8"
-                              textClass="text-[10px]"
-                            />
-                            <div className="ml-2 flex flex-col">
-                              <span className="text-sm font-medium">{member.name}</span>
-                              {member.email && <span className="text-xs text-muted-foreground">{member.email}</span>}
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                    {memberIds.length > 0 && (
-                      <div className="border-t p-2">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setMemberIds([])}
-                          className="w-full text-xs text-muted-foreground hover:text-foreground"
-                        >
-                          Clear selection
-                        </Button>
-                      </div>
-                    )}
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
+                            {memberIds.length > 3 && (
+                              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[8px]">
+                                +{memberIds.length - 3}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">Select team members</span>
+                        )}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                      <PopoverContent
+                        className="w-[360px] max-h-[300px] overflow-y-auto p-0"
+                        align="start"
+                        onWheel={(e) => e.stopPropagation()}
+                        onTouchMove={(e) => e.stopPropagation()}
+                      >
+                       <Command>
+                         <CommandInput placeholder="Search members..." className="no-global-focus-ring h-11 border-0 outline-none ring-0 pr-8 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none" />
+                        <CommandList className="max-h-[250px] overflow-y-auto">
+                         <CommandEmpty>No members found.</CommandEmpty>
+                         <CommandGroup>
+                           {initialMembers.map((member) => (
+                             <CommandItem
+                               key={member.id}
+                               value={`${member.name} ${member.email || ""}`}
+                               onSelect={() => {
+                                 if (memberIds.includes(member.id)) {
+                                   setMemberIds(memberIds.filter((id) => id !== member.id));
+                                 } else {
+                                   setMemberIds([...memberIds, member.id]);
+                                 }
+                               }}
+                             >
+                               <Check className={cn("mr-2 h-4 w-4", memberIds.includes(member.id) ? "opacity-100" : "opacity-0")} />
+                               <MemberAvatar
+                                 name={member.name}
+                                 email={member.email}
+                                 avatarUrl={member.avatar_url}
+                                 sizeClass="h-8 w-8"
+                                 textClass="text-[10px]"
+                               />
+                               <div className="ml-2 flex flex-col">
+                                 <span className="text-sm font-medium">{member.name}</span>
+                                 {member.email && <span className="text-xs text-muted-foreground">{member.email}</span>}
+                               </div>
+                             </CommandItem>
+                           ))}
+                         </CommandGroup>
+                       </CommandList>
+                       {memberIds.length > 0 && (
+                         <div className="border-t p-2">
+                           <Button
+                             type="button"
+                             variant="ghost"
+                             size="sm"
+                             onClick={() => setMemberIds([])}
+                             className="w-full text-xs text-muted-foreground hover:text-foreground"
+                           >
+                             Clear selection
+                           </Button>
+                         </div>
+                       )}
+                     </Command>
+                   </PopoverContent>
+                 </Popover>
+               </div>
 
-            {/* Color & Icon */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Color</Label>
-                <div className="flex gap-2">
-                  <input
-                    type="color"
-                    value={projectColor}
-                    onChange={(e) => setProjectColor(e.target.value)}
-                    className="h-10 w-10 rounded-md border border-input cursor-pointer"
-                  />
-                  <Input value={projectColor} onChange={(e) => setProjectColor(e.target.value)} className="flex-1" />
-                </div>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {PRESET_COLORS.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => setProjectColor(color)}
-                      className={`h-6 w-6 rounded-full border ${projectColor === color ? "ring-2 ring-primary ring-offset-2" : "border-border"}`}
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Icon</Label>
-                <Select value={projectIcon} onValueChange={(v) => setProjectIcon(v as ProjectIcon)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select icon">
-                      {projectIcon && <IconPreview icon={projectIcon} />}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PROJECT_ICONS.map((icon) => (
-                      <SelectItem key={icon} value={icon}>
-                        <IconPreview icon={icon as ProjectIcon} />
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Tasks */}
-            <div className="border rounded-lg">
-              <button
-                type="button"
-                onClick={() => setTasksOpen(!tasksOpen)}
-                className="w-full flex items-center justify-between p-4 text-left"
-              >
-                <div>
-                  <h3 className="text-sm font-medium">Tasks (optional)</h3>
-                  <p className="text-xs text-muted-foreground">Quick-add tasks with this project</p>
-                </div>
-                <ChevronsUpDown className={cn("h-4 w-4 transition-transform", tasksOpen && "rotate-180")} />
-              </button>
-
-              {tasksOpen && (
-                <div className="border-t p-4 space-y-4">
-                  <div className="space-y-2">
-                    <Label>Add a task</Label>
-                    <div className="grid gap-2 sm:grid-cols-12">
-                      <input
-                        value={newTaskTitle}
-                        onChange={(e) => setNewTaskTitle(e.target.value)}
-                        placeholder="Task title"
-                        className="sm:col-span-5 h-10 rounded-md border border-input bg-background px-3 text-sm"
-                      />
-                      <Select value={newTaskPriority} onValueChange={(v) => setNewTaskPriority(v as "low" | "medium" | "high" | "urgent")}>
-                        <SelectTrigger className="sm:col-span-3 h-10">
-                          <SelectValue placeholder="Priority" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {["low", "medium", "high", "urgent"].map((p) => (
-                            <SelectItem key={p} value={p} className="capitalize">
-                              {p}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <DateRangePicker
-                        date={{ from: newTaskDueDate ? new Date(newTaskDueDate) : undefined, to: undefined }}
-                        onDateChange={(range) => setNewTaskDueDate(range?.from || undefined)}
-                        numberOfMonths={1}
-                        showPresets={false}
-                        className="sm:col-span-3 [&_button]:h-10 [&_button]:text-sm"
-                      />
-                      <div className="sm:col-span-1">
+               {/* Row 3 */}
+               <div className="space-y-2">
+                 <Label>Client</Label>
+                  <Popover open={clientPickerOpen} onOpenChange={setClientPickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={clientPickerOpen}
+                        className="w-full justify-between"
+                      >
+                        {clientName ? <span className="truncate">{clientName}</span> : <span className="text-muted-foreground">Select client</span>}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                      <PopoverContent
+                        className="w-[--radix-popover-trigger-width] max-h-[300px] overflow-y-auto p-0"
+                        align="start"
+                        onWheel={(e) => e.stopPropagation()}
+                        onTouchMove={(e) => e.stopPropagation()}
+                      >
+                       <Command>
+                         <CommandInput
+                           ref={clientInputRef}
+                           placeholder="Search or add client..."
+                           className="no-global-focus-ring h-11 border-0 outline-none ring-0 pr-8 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none"
+                         />
                         <Button
                           type="button"
                           size="icon"
-                          onClick={handleAddTask}
-                          disabled={!newTaskTitle.trim()}
-                          className="h-10 w-full sm:w-10"
+                          variant="ghost"
+                          className="absolute right-0 top-0 h-9 w-8"
+                          onClick={async () => {
+                            const val = clientInputRef.current?.value || "";
+                            if (val.trim()) {
+                              const newClient = await onQuickCreateClient(val.trim());
+                              if (newClient) {
+                                setClientName(newClient.name);
+                                setClientPickerOpen(false);
+                                if (clientInputRef.current) clientInputRef.current.value = "";
+                              }
+                            }
+                          }}
                         >
                           <Plus className="h-4 w-4" />
                         </Button>
-                      </div>
-                    </div>
-                  </div>
+                        <CommandList className="max-h-[200px] overflow-y-auto">
+                          <CommandEmpty>No client found.</CommandEmpty>
+                          <CommandGroup>
+                            <CommandItem
+                              value="__no_client__"
+                              onSelect={() => {
+                                setClientName("");
+                                setClientPickerOpen(false);
+                              }}
+                            >
+                              <Check className={cn("mr-2 h-4 w-4", !clientName ? "opacity-100" : "opacity-0")} />
+                              <span>No client</span>
+                            </CommandItem>
+                            {initialClients.map((client) => (
+                              <CommandItem
+                                key={client.id}
+                                value={client.name}
+                                onSelect={() => {
+                                  setClientName(client.name);
+                                  setClientPickerOpen(false);
+                                }}
+                              >
+                                <Check className={cn("mr-2 h-4 w-4", clientName === client.name ? "opacity-100" : "opacity-0")} />
+                                <span>{client.name}</span>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                 </Popover>
+               </div>
+               <div className="space-y-2">
+                 <Label>Budget</Label>
+                 <div className="relative">
+                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+                   <Input
+                     type="number"
+                     min={0}
+                     step="0.01"
+                     value={budget}
+                     onChange={(e) => setBudget(e.target.value)}
+                     placeholder="0.00"
+                     className="pl-7"
+                   />
+                 </div>
+               </div>
 
-                  {newTasks.length > 0 && (
-                    <div className="space-y-2">
-                      {newTasks.map((task, idx) => (
-                        <div key={idx} className="flex items-center gap-2 rounded-md border p-2">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{task.title}</p>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                              <Badge variant="outline" className="capitalize text-[10px]">
-                                {task.priority}
-                              </Badge>
-                              {task.due_date && (
-                                <span className="flex items-center gap-1">
-                                  <CalendarDays className="h-3 w-3" />
-                                  {task.due_date}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRemoveTask(idx)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                {/* Description */}
+                <div className="md:col-span-2">
+                  <MarkdownEditor value={description} onChange={setDescription} />
                 </div>
-              )}
-            </div>
-          </CardContent>
+
+               {/* Tasks */}
+               <div className="border rounded-lg md:col-span-2">
+                 <button
+                   type="button"
+                   onClick={() => setTasksOpen(!tasksOpen)}
+                   className="w-full flex items-center justify-between p-4 text-left"
+                 >
+                   <div>
+                     <h3 className="text-sm font-medium">Tasks (optional)</h3>
+                     <p className="text-xs text-muted-foreground">Quick-add tasks with this project</p>
+                   </div>
+                   <ChevronsUpDown className={cn("h-4 w-4 transition-transform", tasksOpen && "rotate-180")} />
+                 </button>
+
+                 {tasksOpen && (
+                   <div className="border-t p-4 space-y-4">
+                     <div className="space-y-2">
+                       <Label>Add a task</Label>
+                       <div className="grid gap-2 sm:grid-cols-12">
+                         <input
+                           value={newTaskTitle}
+                           onChange={(e) => setNewTaskTitle(e.target.value)}
+                           placeholder="Task title"
+                           className="sm:col-span-5 h-10 rounded-md border border-input bg-background px-3 text-sm"
+                         />
+                         <Select value={newTaskPriority} onValueChange={(v) => setNewTaskPriority(v as "low" | "medium" | "high" | "urgent")}>
+                           <SelectTrigger className="sm:col-span-3 h-10">
+                             <SelectValue placeholder="Priority" />
+                           </SelectTrigger>
+                           <SelectContent>
+                             {["low", "medium", "high", "urgent"].map((p) => (
+                               <SelectItem key={p} value={p} className="capitalize">
+                                 {p}
+                               </SelectItem>
+                             ))}
+                           </SelectContent>
+                         </Select>
+                         <DateRangePicker
+                           date={{ from: newTaskDueDate ? new Date(newTaskDueDate) : undefined, to: undefined }}
+                           onDateChange={(range) => setNewTaskDueDate(range?.from || undefined)}
+                           numberOfMonths={1}
+                           showPresets={false}
+                           className="sm:col-span-3 [&_button]:h-10 [&_button]:text-sm"
+                         />
+                         <div className="sm:col-span-1">
+                           <Button
+                             type="button"
+                             size="icon"
+                             onClick={handleAddTask}
+                             disabled={!newTaskTitle.trim()}
+                             className="h-10 w-full sm:w-10"
+                           >
+                             <Plus className="h-4 w-4" />
+                           </Button>
+                         </div>
+                       </div>
+                     </div>
+
+                     {newTasks.length > 0 && (
+                       <div className="space-y-2">
+                         {newTasks.map((task, idx) => (
+                           <div key={idx} className="flex items-center gap-2 rounded-md border p-2">
+                             <div className="flex-1 min-w-0">
+                               <p className="text-sm font-medium truncate">{task.title}</p>
+                               <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                                 <Badge variant="outline" className="capitalize text-[10px]">
+                                   {task.priority}
+                                 </Badge>
+                                 {task.due_date && (
+                                   <span className="flex items-center gap-1">
+                                     <CalendarDays className="h-3 w-3" />
+                                     {task.due_date}
+                                   </span>
+                                 )}
+                               </div>
+                             </div>
+                             <Button
+                               type="button"
+                               variant="ghost"
+                               size="sm"
+                               onClick={() => handleRemoveTask(idx)}
+                               className="h-8 w-8 p-0"
+                             >
+                               <X className="h-4 w-4" />
+                             </Button>
+                           </div>
+                         ))}
+                       </div>
+                     )}
+                   </div>
+                 )}
+               </div>
+
+               {/* Customize */}
+               <div className="border rounded-lg md:col-span-2">
+                 <button
+                   type="button"
+                   onClick={() => setCustomizeOpen(!customizeOpen)}
+                   className="w-full flex items-center justify-between p-4 text-left"
+                 >
+                   <div>
+                     <h3 className="text-sm font-medium">Customize appearance</h3>
+                     <p className="text-xs text-muted-foreground">Set project color, icon, and labels</p>
+                   </div>
+                   <ChevronsUpDown className={cn("h-4 w-4 transition-transform", customizeOpen && "rotate-180")} />
+                 </button>
+
+                 {customizeOpen && (
+                   <div className="border-t p-4">
+                     <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                       {/* Color */}
+                       <div className="space-y-2">
+                         <Label>Color</Label>
+                         <div className="flex gap-2">
+                           <input
+                             type="color"
+                             value={projectColor}
+                             onChange={(e) => setProjectColor(e.target.value)}
+                             className="h-10 w-10 rounded-md border border-input cursor-pointer"
+                           />
+                           <Input value={projectColor} onChange={(e) => setProjectColor(e.target.value)} className="flex-1" />
+                         </div>
+                         <div className="flex flex-wrap gap-2 mt-2">
+                           {PRESET_COLORS.map((color) => (
+                             <button
+                               key={color}
+                               type="button"
+                               onClick={() => setProjectColor(color)}
+                               className={`h-6 w-6 rounded-full border ${projectColor === color ? "ring-2 ring-primary ring-offset-2" : "border-border"}`}
+                               style={{ backgroundColor: color }}
+                             />
+                           ))}
+                         </div>
+                       </div>
+
+                       {/* Icon */}
+                       <div className="space-y-2">
+                         <Label>Icon</Label>
+                         <Select value={projectIcon} onValueChange={(v) => setProjectIcon(v as ProjectIcon)}>
+                           <SelectTrigger>
+                             <SelectValue placeholder="Select icon">
+                               {projectIcon && <IconPreview icon={projectIcon} />}
+                             </SelectValue>
+                           </SelectTrigger>
+                           <SelectContent>
+                             {PROJECT_ICONS.map((icon) => (
+                               <SelectItem key={icon} value={icon}>
+                                 <IconPreview icon={icon as ProjectIcon} />
+                               </SelectItem>
+                             ))}
+                           </SelectContent>
+                         </Select>
+                       </div>
+
+                       {/* Labels */}
+                       <div className="space-y-2">
+                         <Label>Labels</Label>
+                         <div className="flex flex-wrap gap-2 min-h-[42px] w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-primary/20">
+                           {labels.map((label) => (
+                             <Badge key={label} variant="secondary" className="flex items-center gap-1.5 h-7 px-2.5 py-0.5 text-xs font-medium">
+                               {label}
+                               <button
+                                 type="button"
+                                 onClick={() => setLabels(labels.filter((l) => l !== label))}
+                                 className="ml-0.5 hover:text-rose-500 transition-colors"
+                               >
+                                 <X className="h-3 w-3" />
+                               </button>
+                             </Badge>
+                           ))}
+                         <input
+                           value={labelInput}
+                           onChange={(e) => setLabelInput(e.target.value)}
+                           onKeyDown={(e) => {
+                             if (e.key === "Enter" || e.key === ",") {
+                               e.preventDefault();
+                               handleAddLabel();
+                             }
+                           }}
+                           onBlur={handleAddLabel}
+                           placeholder={labels.length === 0 ? "Type and press Enter..." : ""}
+                           className="flex-1 min-w-[120px] bg-transparent outline-none border-0 ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none text-sm placeholder:text-muted-foreground"
+                         />
+                         </div>
+                       </div>
+                     </div>
+                   </div>
+                 )}
+               </div>
+             </div>
+           </CardContent>
 
            {/* Sticky Footer */}
            <div className="sticky bottom-0 z-20 flex justify-end gap-2 border-t border-border/60 bg-background/90 p-2.5 sm:p-4">
