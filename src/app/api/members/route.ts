@@ -36,13 +36,13 @@ export async function GET(request: Request) {
   const search = url.searchParams.get("search")?.toLowerCase() || "";
   const jobTitle = url.searchParams.get("jobTitle")?.toLowerCase() || "";
 
-  // Build query
-  let query = supabase
-    .from("members")
-    .select(
-      "id, name, email, role, user_id, profiles:profiles!members_user_id_fkey(role, avatar_url)",
-    )
-    .order("name");
+   // Build query
+   let query = supabase
+     .from("members")
+     .select(
+       "id, name, email, role, user_id, profiles:profiles!members_user_id_fkey(role, avatar_url, full_name)",
+     )
+     .order("name");
 
   // Apply text search filter (name, email)
   if (search) {
@@ -85,9 +85,17 @@ export async function GET(request: Request) {
       systemRole = (member.profiles as { role?: string | null })?.role ?? null;
     }
 
+    // Prefer full_name from profile if available, otherwise use member.name
+    // profiles can be an array (one-to-many) or an object (one-to-one)
+    const profileRecord = Array.isArray(member.profiles)
+      ? member.profiles[0]
+      : (member.profiles as { full_name?: string } | null);
+
+    const displayName = profileRecord?.full_name || member.name;
+
     return {
       id: member.id,
-      name: member.name,
+      name: displayName,
       email: member.email,
       role: member.role,
       system_role: systemRole,

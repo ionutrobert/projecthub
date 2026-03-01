@@ -503,9 +503,9 @@ function ClientPicker({
           </div>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Search clients..." className={cn(size === "compact" ? "h-9" : "h-11")} />
+       <PopoverContent className="w-[--radix-popover-trigger-width] max-h-[300px] overflow-y-auto p-0" align="start">
+         <Command>
+           <CommandInput placeholder="Search clients..." className={cn(size === "compact" ? "h-9" : "h-11", "no-global-focus-ring border-0 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none")} />
           <CommandList className="max-h-[200px]">
             <CommandEmpty>No client found.</CommandEmpty>
             <CommandGroup>
@@ -600,9 +600,9 @@ function MemberPicker({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[360px] p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Search members..." className="h-11" />
+       <PopoverContent className="w-[360px] max-h-[300px] overflow-y-auto p-0" align="start">
+         <Command>
+           <CommandInput placeholder="Search members..." className="h-11 no-global-focus-ring border-0 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none" />
           <CommandList className="max-h-[250px]">
             <CommandEmpty>No members found.</CommandEmpty>
             <CommandGroup>
@@ -676,6 +676,7 @@ export default function ProjectDetailsClient({
   const [projectTasks, setProjectTasks] = useState<ProjectTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState(mode === "view");
   const [projectMemberNames, setProjectMemberNames] = useState<string[]>([]);
+  const [notFound, setNotFound] = useState(false);
 
   // Form state
   const [name, setName] = useState("");
@@ -783,110 +784,113 @@ export default function ProjectDetailsClient({
     void loadLookups();
   }, []);
 
-  useEffect(() => {
-    if (mode !== "view" || !projectId) return;
+   useEffect(() => {
+     if (mode !== "view" || !projectId) return;
 
-    const loadProject = async () => {
-      setLoading(true);
-      const response = await fetch(`/api/projects/${projectId}`, { cache: "no-store" });
-      const data = (await response.json().catch(() => null)) as ProjectResponse | null;
+     const loadProject = async () => {
+       setLoading(true);
+       setNotFound(false);
+       const response = await fetch(`/api/projects/${projectId}`, { cache: "no-store" });
+       const data = (await response.json().catch(() => null)) as ProjectResponse | null;
 
-      if (response.ok && data) {
-        setName(data.name || "");
-        setStatus(data.status || "active");
-        setStartDate(data.start_date || "");
-        setDeadline(data.deadline || "");
-        setBudget(data.budget != null ? String(data.budget) : "");
-        setClientName(data.client_name || "");
-        setDescription(data.description || "");
-        setProjectColor(data.color || "#8B5CF6");
-        setProjectIcon(data.icon || "FolderKanban");
-        setDescriptionExpanded(false);
-        setLabelItems((data.labels || []).join(", ").split(",").filter(Boolean).map(s => s.trim()));
-        const from = parseDateValue(data.start_date);
-        const to = parseDateValue(data.deadline);
-        setDateRange(from || to ? { from, to } : undefined);
-        setMemberIds(
-          (data.project_members || [])
-            .map((item) => item.members?.id)
-            .filter((id): id is string => Boolean(id)),
-        );
-        setProjectMemberNames(
-          Array.from(
-            new Set(
-              (data.project_members || [])
-                .map((item) => item.members?.name)
-                .filter((value): value is string => Boolean(value)),
-            ),
-          ),
-        );
-      }
+       if (response.ok && data) {
+         setName(data.name || "");
+         setStatus(data.status || "active");
+         setStartDate(data.start_date || "");
+         setDeadline(data.deadline || "");
+         setBudget(data.budget != null ? String(data.budget) : "");
+         setClientName(data.client_name || "");
+         setDescription(data.description || "");
+         setProjectColor(data.color || "#8B5CF6");
+         setProjectIcon(data.icon || "FolderKanban");
+         setDescriptionExpanded(false);
+         setLabelItems((data.labels || []).join(", ").split(",").filter(Boolean).map(s => s.trim()));
+         const from = parseDateValue(data.start_date);
+         const to = parseDateValue(data.deadline);
+         setDateRange(from || to ? { from, to } : undefined);
+         setMemberIds(
+           (data.project_members || [])
+             .map((item) => item.members?.id)
+             .filter((id): id is string => Boolean(id)),
+         );
+         setProjectMemberNames(
+           Array.from(
+             new Set(
+               (data.project_members || [])
+                 .map((item) => item.members?.name)
+                 .filter((value): value is string => Boolean(value)),
+             ),
+           ),
+         );
+       } else {
+         setNotFound(true);
+       }
 
-      setLoading(false);
-    };
+       setLoading(false);
+     };
 
-    void loadProject();
-  }, [mode, projectId]);
+     void loadProject();
+   }, [mode, projectId]);
 
-  useEffect(() => {
-    if (mode !== "view" || !projectId) {
-      setProjectTasks([]);
-      setTasksLoading(false);
-      return;
-    }
-
-    setTasksExpanded(false);
-    setTasksLoading(true);
-    const loadTasks = async () => {
-      try {
-        const response = await fetch(`/api/tasks?projectId=${projectId}`, { cache: "no-store" });
-        const data = await response.json().catch(() => []);
-        if (response.ok && Array.isArray(data)) {
-          setProjectTasks(data);
-        } else {
-          setProjectTasks([]);
-        }
-      } catch {
+    useEffect(() => {
+      if (mode !== "view" || !projectId || notFound) {
         setProjectTasks([]);
-      } finally {
         setTasksLoading(false);
+        return;
       }
-    };
 
-    void loadTasks();
-  }, [mode, projectId]);
+      setTasksExpanded(false);
+      setTasksLoading(true);
+      const loadTasks = async () => {
+        try {
+          const response = await fetch(`/api/tasks?projectId=${projectId}`, { cache: "no-store" });
+          const data = await response.json().catch(() => []);
+          if (response.ok && Array.isArray(data)) {
+            setProjectTasks(data);
+          } else {
+            setProjectTasks([]);
+          }
+        } catch {
+          setProjectTasks([]);
+        } finally {
+          setTasksLoading(false);
+        }
+      };
 
-  useEffect(() => {
-    if (mode !== "view" || !projectId) {
-      setProjectActivities([]);
-      setActivitiesLoading(false);
-      setActivitiesHasMore(false);
-      return;
-    }
+      void loadTasks();
+    }, [mode, projectId, notFound]);
 
-    const loadActivities = async () => {
+    useEffect(() => {
+      if (mode !== "view" || !projectId || notFound) {
+        setProjectActivities([]);
+        setActivitiesLoading(false);
+        setActivitiesHasMore(false);
+        return;
+      }
+
       setActivitiesLoading(true);
-      try {
-        const response = await fetch(`/api/projects/${projectId}/activities?offset=0&limit=8`, { cache: "no-store" });
-        const data = await response.json().catch(() => null);
-        if (!response.ok || !data || !Array.isArray(data.activities)) {
+      const loadActivities = async () => {
+        try {
+          const response = await fetch(`/api/projects/${projectId}/activities?offset=0&limit=8`, { cache: "no-store" });
+          const data = await response.json().catch(() => null);
+          if (!response.ok || !data || !Array.isArray(data.activities)) {
+            setProjectActivities([]);
+            setActivitiesHasMore(false);
+            return;
+          }
+
+          setProjectActivities(data.activities as ActivityFeedItem[]);
+          setActivitiesHasMore(Boolean(data.hasMore));
+        } catch {
           setProjectActivities([]);
           setActivitiesHasMore(false);
-          return;
+        } finally {
+          setActivitiesLoading(false);
         }
+      };
 
-        setProjectActivities(data.activities as ActivityFeedItem[]);
-        setActivitiesHasMore(Boolean(data.hasMore));
-      } catch {
-        setProjectActivities([]);
-        setActivitiesHasMore(false);
-      } finally {
-        setActivitiesLoading(false);
-      }
-    };
-
-    void loadActivities();
-  }, [mode, projectId]);
+      void loadActivities();
+    }, [mode, projectId, notFound]);
 
   const loadMoreActivities = async () => {
     if (!projectId || activitiesLoading || !activitiesHasMore) return;
@@ -1072,7 +1076,7 @@ export default function ProjectDetailsClient({
 
     const response = await fetch(`/api/projects/${projectId}`, { method: "DELETE" });
     if (response.ok) {
-      router.push("/projects");
+      router.push(`/projects?deleted=${encodeURIComponent(name)}`);
       return;
     }
 
@@ -1135,11 +1139,19 @@ export default function ProjectDetailsClient({
           </CardHeader>
         )}
         <CardContent className={cn(isViewMode && "p-0")}>
-          {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : isViewMode ? (
+           {loading ? (
+             <div className="flex items-center justify-center py-16">
+               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+             </div>
+           ) : notFound ? (
+             <div className="flex flex-col items-center justify-center py-16 text-center">
+               <p className="text-lg font-medium text-muted-foreground">Project not found</p>
+                <p className="text-sm text-muted-foreground mt-1">The project you&apos;re looking for doesn&apos;t exist or has been deleted.</p>
+               <Button variant="outline" className="mt-4" onClick={() => router.push("/projects")}>
+                 Back to Projects
+               </Button>
+             </div>
+           ) : isViewMode ? (
             <div className="space-y-4">
               <div className="rounded-xl border border-border/70 bg-gradient-to-br from-background/60 to-background/30 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">

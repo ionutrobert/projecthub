@@ -63,21 +63,22 @@ export async function GET(request: NextRequest) {
   const pageSize = parseInt(searchParams.get("pageSize") || "20", 10);
   const offset = Math.max(0, (page - 1) * pageSize);
 
-  let query = supabase.from("projects").select(
-    `
-      *,
-      project_members (
-        members (
-          id,
-          user_id,
-          name,
-          email,
-          role
-        )
-      )
-      `,
-    { count: "exact" },
-  );
+   let query = supabase.from("projects").select(
+     `
+       *,
+       project_members (
+         members (
+           id,
+           user_id,
+           name,
+           email,
+           role,
+           profiles:profiles!members_user_id_fkey(role, avatar_url, full_name)
+         )
+       )
+       `,
+     { count: "exact" },
+   );
 
   // Filter by status (single or multiple)
   if (statusParam && statusParam !== "all") {
@@ -159,11 +160,52 @@ export async function GET(request: NextRequest) {
     error = null;
   }
 
-  const projectList = projects || [];
+   interface MemberWithProfile {
+     id: string;
+     user_id?: string | null;
+     name: string;
+     email?: string | null;
+     role?: string | null;
+     profiles?: Array<{ full_name?: string }> | { full_name?: string } | null;
+   }
 
-  if (projectList.length === 0) {
-    return NextResponse.json(projectList);
-  }
+   interface ProjectMember {
+     members?: MemberWithProfile | null;
+   }
+
+   const projectList = (projects || []).map((project) => {
+     const projectMembers = project.project_members as ProjectMember[] | undefined;
+     if (!projectMembers) return project;
+
+     const normalizedMembers = projectMembers.map((pm) => {
+       const member = pm.members;
+       if (!member) return pm;
+
+       // member.profiles can be array (one-to-many) or object (one-to-one)
+       const profileRecord = Array.isArray(member.profiles)
+         ? member.profiles[0]
+         : (member.profiles as { full_name?: string } | null);
+
+       const displayName = profileRecord?.full_name || member.name;
+
+       return {
+         ...pm,
+         members: {
+           ...member,
+           name: displayName,
+         },
+       };
+     });
+
+     return {
+       ...project,
+       project_members: normalizedMembers,
+     };
+   });
+
+   if (projectList.length === 0) {
+     return NextResponse.json(projectList);
+   }
 
   const projectIds = projectList.map((project) => project.id);
   const { data: taskRows, error: taskError } = await supabase
@@ -228,23 +270,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { data: project, error } = await supabase
-    .from("projects")
-    .insert({
-      name,
-      status,
-      start_date: start_date || null,
-      deadline: deadline || null,
-      budget: budget ?? null,
-      description,
-      client_name: client_name || null,
-      labels: labels.length > 0 ? labels : null,
-      color,
-      icon,
-      created_by: user.id,
-    })
-    .select()
-    .single();
+   const { data: project, error } = await supabase
+     .from("projects")
+     .insert({
+       name,
+       status,
+       start_date: start_date || null,
+       deadline: deadline || null,
+       budget: budget ?? null,
+       description,
+       client_name: client_name || null,
+       labels: labels,
+       color,
+       icon,
+       created_by: user.id,
+     })
+     .select()
+     .single();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

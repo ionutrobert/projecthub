@@ -254,6 +254,7 @@ export default function ProjectsPage() {
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [tableSort, setTableSort] = useState<{ key: TableSortKey; direction: TableSortDirection } | null>(null);
   const [desktopView, setDesktopView] = useState<"list" | "card">("list");
+  const [deleteToast, setDeleteToast] = useState<string | null>(null);
 
   const canEdit = profile?.role === "admin" || profile?.role === "member";
 
@@ -455,8 +456,10 @@ export default function ProjectsPage() {
     }
   };
 
-  const handleProjectCreated = (project: { id: string; name: string }) => {
+  const handleProjectCreated = (project: Project) => {
     setToast({ projectId: project.id, projectName: project.name });
+    // Optimistically add to projects list
+    setProjects((prev) => [project, ...prev]);
     // Auto-dismiss after 6 seconds
     setTimeout(() => setToast(null), 6000);
   };
@@ -642,12 +645,33 @@ export default function ProjectsPage() {
     return projects.find((project) => project.id === spotlightProjectId) || null;
   }, [projects, spotlightProjectId]);
 
-  useEffect(() => {
-    if (!spotlightProject) return;
-    setHighlightProjectId(spotlightProject.id);
-    const timer = setTimeout(() => setHighlightProjectId(null), 2400);
-    return () => clearTimeout(timer);
-  }, [spotlightProject]);
+   useEffect(() => {
+     if (!spotlightProject) return;
+     setHighlightProjectId(spotlightProject.id);
+     const timer = setTimeout(() => setHighlightProjectId(null), 2400);
+     return () => clearTimeout(timer);
+   }, [spotlightProject]);
+
+   // Handle delete notification from query param
+   useEffect(() => {
+     const deleted = searchParams.get("deleted");
+     if (deleted) {
+       setDeleteToast(deleted);
+       // Remove the query param after showing toast
+       const params = new URLSearchParams(searchParams.toString());
+       params.delete("deleted");
+       router.replace(`/projects?${params.toString()}`, { scroll: false });
+       // Auto-dismiss after 6 seconds
+       setTimeout(() => setDeleteToast(null), 6000);
+     }
+   }, [searchParams, router]);
+
+   // Close preview modal if the project no longer exists in the list
+   useEffect(() => {
+     if (previewProject && !projects.some(p => p.id === previewProject.id)) {
+       setPreviewProject(null);
+     }
+   }, [projects, previewProject]);
 
   const hasActiveFilters =
     filter !== "all" ||
@@ -684,19 +708,28 @@ export default function ProjectsPage() {
         )}
       </div>
 
-      {toast && (
-        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 flex items-center justify-between">
-          <p className="text-sm text-emerald-700 dark:text-emerald-400">
-            Project &quot;{toast.projectName}&quot; created successfully.
-          </p>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => { router.push(`/projects/${toast.projectId}`); setToast(null); }}>
-              View Project
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setToast(null)}>Dismiss</Button>
-          </div>
-        </div>
-      )}
+       {deleteToast && (
+         <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 flex items-center justify-between">
+           <p className="text-sm text-rose-700 dark:text-rose-400">
+             Project &quot;{deleteToast}&quot; deleted.
+           </p>
+           <Button size="sm" variant="ghost" onClick={() => setDeleteToast(null)}>Dismiss</Button>
+         </div>
+       )}
+
+       {toast && (
+         <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 flex items-center justify-between">
+           <p className="text-sm text-emerald-700 dark:text-emerald-400">
+             Project &quot;{toast.projectName}&quot; created successfully.
+           </p>
+           <div className="flex gap-2">
+             <Button size="sm" variant="outline" onClick={() => { router.push(`/projects/${toast.projectId}`); setToast(null); }}>
+               View Project
+             </Button>
+             <Button size="sm" variant="ghost" onClick={() => setToast(null)}>Dismiss</Button>
+           </div>
+         </div>
+       )}
 
       {/* Filters */}
       <div className="lg:hidden">
@@ -1351,25 +1384,39 @@ export default function ProjectsPage() {
                               </p>
                             </button>
 
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/60 bg-background/70 text-muted-foreground hover:border-primary/50 hover:text-foreground"
-                                onClick={() => toggleStar(project.id)}
-                                title={starredIds.includes(project.id) ? "Unstar project" : "Star project"}
-                              >
-                                <Star className={cn("h-3.5 w-3.5", starredIds.includes(project.id) ? "text-amber-400" : "text-muted-foreground")} />
-                              </button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2 text-[11px]"
-                                onClick={() => setPreviewProject(project)}
-                              >
-                                Preview
-                              </Button>
-                            </div>
+                             <div className="flex items-center gap-1.5">
+                               <button
+                                 type="button"
+                                 className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/60 bg-background/70 text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                                 onClick={(e) => {
+                                   e.stopPropagation();
+                                   toggleStar(project.id);
+                                 }}
+                                 title={starredIds.includes(project.id) ? "Unstar project" : "Star project"}
+                               >
+                                 <Star className={cn("h-3.5 w-3.5", starredIds.includes(project.id) ? "text-amber-400" : "text-muted-foreground")} />
+                               </button>
+                               <Button
+                                 type="button"
+                                 size="sm"
+                                 variant="outline"
+                                 className="h-7 px-2 text-[11px]"
+                                 onClick={() => setPreviewProject(project)}
+                               >
+                                 Preview
+                               </Button>
+                               <Button
+                                 type="button"
+                                 size="sm"
+                                 className="h-7 px-2 text-[11px] bg-accent text-accent-foreground hover:bg-accent/90"
+                                 onClick={(e) => {
+                                   e.stopPropagation();
+                                   router.push(`/projects/${project.id}`);
+                                 }}
+                               >
+                                 Open
+                               </Button>
+                             </div>
                           </div>
 
                           <div className="mt-2">
@@ -1417,30 +1464,9 @@ export default function ProjectsPage() {
                             ))}
                           </div>
 
-                          <div className="mt-2.5 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                           <div className="mt-2.5 flex items-center justify-between gap-2 text-xs text-muted-foreground">
                             <span className="truncate">{getClientDisplayName(project.client_name)}</span>
                             <span className="font-mono">{project.budget ? `$${project.budget.toLocaleString()}` : "-"}</span>
-                          </div>
-
-                          <div className="mt-3 flex items-center justify-end gap-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="h-8 px-2.5 text-xs"
-                              onClick={() => setPreviewProject(project)}
-                            >
-                              <Eye className="mr-1.5 h-3.5 w-3.5" />
-                              Preview
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="h-8 bg-primary px-2.5 text-xs text-primary-foreground hover:bg-primary/90"
-                              onClick={() => router.push(`/projects/${project.id}`)}
-                            >
-                              Open
-                            </Button>
                           </div>
                         </div>
                       );

@@ -39,28 +39,64 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { data: project, error } = await supabase
-    .from("projects")
-    .select(`
-      *,
-      project_members (
-        members (
-          id,
-          user_id,
-          name,
-          email,
-          role
-        )
-      )
-    `)
-    .eq("id", id)
-    .single()
+   const { data: project, error } = await supabase
+     .from("projects")
+     .select(`
+       *,
+       project_members (
+         members (
+           id,
+           user_id,
+           name,
+           email,
+           role,
+           profiles:profiles!members_user_id_fkey(role, avatar_url, full_name)
+         )
+       )
+     `)
+     .eq("id", id)
+     .single()
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 404 })
-  }
+   if (error) {
+     return NextResponse.json({ error: error.message }, { status: 404 })
+   }
 
-  return NextResponse.json(project)
+   // Normalize member names to use full_name from profile if available
+   interface MemberWithProfile {
+     id: string;
+     user_id?: string | null;
+     name: string;
+     email?: string | null;
+     role?: string | null;
+     profiles?: Array<{ full_name?: string }> | { full_name?: string } | null;
+   }
+
+   interface ProjectMember {
+     members?: MemberWithProfile | null;
+   }
+
+   if (project?.project_members) {
+     project.project_members = (project.project_members as ProjectMember[]).map((pm) => {
+       const member = pm.members;
+       if (!member) return pm;
+
+       const profileRecord = Array.isArray(member.profiles)
+         ? member.profiles[0]
+         : (member.profiles as { full_name?: string } | null);
+
+       const displayName = profileRecord?.full_name || member.name;
+
+       return {
+         ...pm,
+         members: {
+           ...member,
+           name: displayName,
+         },
+       };
+     });
+   }
+
+   return NextResponse.json(project)
 }
 
 export async function PUT(
