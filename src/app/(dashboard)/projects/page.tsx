@@ -14,7 +14,13 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import ProjectPreviewModal from "@/components/project-preview-modal";
 import ProjectFormModal from "@/components/project-form-modal";
 import MemberAvatar from "@/components/member-avatar";
@@ -99,7 +105,10 @@ interface Client {
 type TableSortKey = "project" | "status" | "deadline" | "budget";
 type TableSortDirection = "asc" | "desc";
 
-const SORT_MODE_LABEL: Record<"priority" | "due_date" | "name" | "custom", string> = {
+const SORT_MODE_LABEL: Record<
+  "priority" | "due_date" | "name" | "custom",
+  string
+> = {
   priority: "Priority",
   due_date: "Due Date",
   name: "Name",
@@ -138,8 +147,14 @@ function getDeadlineCopy(deadline: string | null) {
 
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const dueDate = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
-  const diffDays = Math.floor((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  const dueDate = new Date(
+    parsed.getFullYear(),
+    parsed.getMonth(),
+    parsed.getDate(),
+  );
+  const diffDays = Math.floor(
+    (dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+  );
 
   if (diffDays === 0) {
     return { label: "Deadline today", tone: "warn" as const };
@@ -160,13 +175,19 @@ function getDeadlineCopy(deadline: string | null) {
 }
 
 function getDeadlineToneClass(tone: "muted" | "warn" | "overdue" | "upcoming") {
-  if (tone === "overdue") return "border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-300";
-  if (tone === "warn") return "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300";
-  if (tone === "upcoming") return "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300";
+  if (tone === "overdue")
+    return "border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-300";
+  if (tone === "warn")
+    return "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300";
+  if (tone === "upcoming")
+    return "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300";
   return "border-border/60 bg-muted/40 text-muted-foreground";
 }
 
-function getProjectCompletionEstimate(status: Project["status"], taskCount?: number) {
+function getProjectCompletionEstimate(
+  status: Project["status"],
+  taskCount?: number,
+) {
   if (!taskCount || taskCount <= 0) {
     if (status === "completed" || status === "closed") return 100;
     if (status === "in-progress") return 45;
@@ -221,7 +242,10 @@ export default function ProjectsPage() {
   const [addProjectOpen, setAddProjectOpen] = useState(false);
   const [loadingError, setLoadingError] = useState<string | null>(null);
   const [previewProject, setPreviewProject] = useState<Project | null>(null);
-  const [toast, setToast] = useState<{ projectId: string; projectName: string } | null>(null);
+  const [toast, setToast] = useState<{
+    projectId: string;
+    projectName: string;
+  } | null>(null);
   const initialFilter = searchParams.get("status") || "all";
   const initialSearch =
     searchParams.get("q") || searchParams.get("search") || "";
@@ -245,16 +269,37 @@ export default function ProjectsPage() {
       return [];
     }
   });
-  const [sortMode, setSortMode] = useState<"priority" | "due_date" | "name" | "custom">(
-    "priority",
-  );
+  const [sortMode, setSortMode] = useState<
+    "priority" | "due_date" | "name" | "custom"
+  >("priority");
   const [starFeedback, setStarFeedback] = useState<string | null>(null);
-  const [highlightProjectId, setHighlightProjectId] = useState<string | null>(null);
-  const [spotlightProjectId, setSpotlightProjectId] = useState(initialSpotlightProjectId);
+  const [highlightProjectId, setHighlightProjectId] = useState<string | null>(
+    null,
+  );
+  const [spotlightProjectId, setSpotlightProjectId] = useState(
+    initialSpotlightProjectId,
+  );
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-  const [tableSort, setTableSort] = useState<{ key: TableSortKey; direction: TableSortDirection } | null>(null);
+  const [tableSort, setTableSort] = useState<{
+    key: TableSortKey;
+    direction: TableSortDirection;
+  } | null>(null);
   const [desktopView, setDesktopView] = useState<"list" | "card">("list");
   const [deleteToast, setDeleteToast] = useState<string | null>(null);
+  const [hideCompleted, setHideCompleted] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const stored = window.sessionStorage.getItem(
+      "projecthub-projects-hide-completed",
+    );
+    return stored === null ? true : stored === "true";
+  });
+  const [myProjectsOnly, setMyProjectsOnly] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const stored = window.sessionStorage.getItem("projecthub-projects-my-only");
+    return stored === null ? true : stored === "true";
+  });
+  const [listVisibleCount, setListVisibleCount] = useState(10);
+  const [cardVisibleCount, setCardVisibleCount] = useState(12);
 
   const canEdit = profile?.role === "admin" || profile?.role === "member";
 
@@ -299,7 +344,9 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const saved = window.sessionStorage.getItem("projecthub-projects-desktop-view");
+    const saved = window.sessionStorage.getItem(
+      "projecthub-projects-desktop-view",
+    );
     if (saved === "list" || saved === "card") {
       setDesktopView(saved);
     }
@@ -307,8 +354,27 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.sessionStorage.setItem("projecthub-projects-desktop-view", desktopView);
+    window.sessionStorage.setItem(
+      "projecthub-projects-desktop-view",
+      desktopView,
+    );
   }, [desktopView]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.setItem(
+      "projecthub-projects-hide-completed",
+      String(hideCompleted),
+    );
+  }, [hideCompleted]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.setItem(
+      "projecthub-projects-my-only",
+      String(myProjectsOnly),
+    );
+  }, [myProjectsOnly]);
 
   useEffect(() => {
     if (userLoading) return;
@@ -420,7 +486,8 @@ export default function ProjectsPage() {
     if (!canEdit) return;
     const currentIndex = PROJECT_STATUSES.indexOf(project.status);
     const nextStatus =
-      PROJECT_STATUSES[(currentIndex + 1) % PROJECT_STATUSES.length] || "active";
+      PROJECT_STATUSES[(currentIndex + 1) % PROJECT_STATUSES.length] ||
+      "active";
     const response = await fetch(`/api/projects/${project.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -463,7 +530,6 @@ export default function ProjectsPage() {
     // Auto-dismiss after 6 seconds
     setTimeout(() => setToast(null), 6000);
   };
-
 
   const getStatusStyles = (status: string) => {
     switch (status) {
@@ -508,20 +574,55 @@ export default function ProjectsPage() {
     return [...uniqueById.values()];
   };
 
+  const isAssignedToCurrentUser = useCallback(
+    (project: Project) => {
+      if (!user) return false;
+      return (project.project_members || []).some(
+        (pm) =>
+          pm.members?.user_id === user.id || pm.members?.email === user.email,
+      );
+    },
+    [user],
+  );
+
+  const filteredProjects = useMemo(() => {
+    return projects.filter((p) => {
+      if (
+        hideCompleted &&
+        (p.status === "completed" || p.status === "closed")
+      ) {
+        return false;
+      }
+      if (myProjectsOnly && !isAssignedToCurrentUser(p)) {
+        return false;
+      }
+      return true;
+    });
+  }, [projects, hideCompleted, myProjectsOnly, isAssignedToCurrentUser]);
+
+  const hiddenCount = useMemo(() => {
+    let count = 0;
+    projects.forEach((p) => {
+      const isCompleted = p.status === "completed" || p.status === "closed";
+      const isMine = isAssignedToCurrentUser(p);
+
+      const shouldHideCompleted = hideCompleted && isCompleted;
+      const shouldHideNotMine = myProjectsOnly && !isMine;
+
+      if (shouldHideCompleted || shouldHideNotMine) {
+        count++;
+      }
+    });
+    return count;
+  }, [projects, hideCompleted, myProjectsOnly, isAssignedToCurrentUser]);
+
   const sortedProjects = useMemo(() => {
-    const list = [...projects];
+    const list = [...filteredProjects];
 
     const parseDeadline = (value: string | null | undefined) => {
       if (!value) return Number.POSITIVE_INFINITY;
       const timestamp = new Date(value).getTime();
       return Number.isNaN(timestamp) ? Number.POSITIVE_INFINITY : timestamp;
-    };
-
-    const isAssignedToCurrentUser = (project: Project) => {
-      if (!user) return false;
-      return (project.project_members || []).some(
-        (pm) => pm.members?.user_id === user.id || pm.members?.email === user.email,
-      );
     };
 
     if (sortMode === "priority") {
@@ -579,7 +680,13 @@ export default function ProjectsPage() {
     }
 
     return list;
-  }, [projects, sortMode, starredIds, customOrder, user]);
+  }, [
+    filteredProjects,
+    sortMode,
+    starredIds,
+    customOrder,
+    isAssignedToCurrentUser,
+  ]);
 
   const desktopSortedProjects = useMemo(() => {
     if (!tableSort) return sortedProjects;
@@ -598,10 +705,13 @@ export default function ProjectsPage() {
       } else if (tableSort.key === "status") {
         result = a.status.localeCompare(b.status);
       } else if (tableSort.key === "deadline") {
-        result = toDeadlineTimestamp(a.deadline) - toDeadlineTimestamp(b.deadline);
+        result =
+          toDeadlineTimestamp(a.deadline) - toDeadlineTimestamp(b.deadline);
       } else if (tableSort.key === "budget") {
-        const aBudget = typeof a.budget === "number" ? a.budget : Number.POSITIVE_INFINITY;
-        const bBudget = typeof b.budget === "number" ? b.budget : Number.POSITIVE_INFINITY;
+        const aBudget =
+          typeof a.budget === "number" ? a.budget : Number.POSITIVE_INFINITY;
+        const bBudget =
+          typeof b.budget === "number" ? b.budget : Number.POSITIVE_INFINITY;
         result = aBudget - bBudget;
       }
 
@@ -642,42 +752,45 @@ export default function ProjectsPage() {
 
   const spotlightProject = useMemo(() => {
     if (!spotlightProjectId) return null;
-    return projects.find((project) => project.id === spotlightProjectId) || null;
+    return (
+      projects.find((project) => project.id === spotlightProjectId) || null
+    );
   }, [projects, spotlightProjectId]);
 
-   useEffect(() => {
-     if (!spotlightProject) return;
-     setHighlightProjectId(spotlightProject.id);
-     const timer = setTimeout(() => setHighlightProjectId(null), 2400);
-     return () => clearTimeout(timer);
-   }, [spotlightProject]);
+  useEffect(() => {
+    if (!spotlightProject) return;
+    setHighlightProjectId(spotlightProject.id);
+    const timer = setTimeout(() => setHighlightProjectId(null), 2400);
+    return () => clearTimeout(timer);
+  }, [spotlightProject]);
 
-   // Handle delete notification from query param
-   useEffect(() => {
-     const deleted = searchParams.get("deleted");
-     if (deleted) {
-       setDeleteToast(deleted);
-       // Remove the query param after showing toast
-       const params = new URLSearchParams(searchParams.toString());
-       params.delete("deleted");
-       router.replace(`/projects?${params.toString()}`, { scroll: false });
-       // Auto-dismiss after 6 seconds
-       setTimeout(() => setDeleteToast(null), 6000);
-     }
-   }, [searchParams, router]);
+  // Handle delete notification from query param
+  useEffect(() => {
+    const deleted = searchParams.get("deleted");
+    if (deleted) {
+      setDeleteToast(deleted);
+      // Remove the query param after showing toast
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("deleted");
+      router.replace(`/projects?${params.toString()}`, { scroll: false });
+      // Auto-dismiss after 6 seconds
+      setTimeout(() => setDeleteToast(null), 6000);
+    }
+  }, [searchParams, router]);
 
-   // Close preview modal if the project no longer exists in the list
-   useEffect(() => {
-     if (previewProject && !projects.some(p => p.id === previewProject.id)) {
-       setPreviewProject(null);
-     }
-   }, [projects, previewProject]);
+  // Close preview modal if the project no longer exists in the list
+  useEffect(() => {
+    if (previewProject && !projects.some((p) => p.id === previewProject.id)) {
+      setPreviewProject(null);
+    }
+  }, [projects, previewProject]);
 
   const hasActiveFilters =
     filter !== "all" ||
     debouncedSearch.trim().length > 0 ||
     selectedMemberIds.length > 0 ||
-    sortMode !== "priority";
+    sortMode !== "priority" ||
+    hideCompleted;
   const hasTableSort = Boolean(tableSort);
   const hasActiveControls = hasActiveFilters || hasTableSort;
 
@@ -693,7 +806,9 @@ export default function ProjectsPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-start justify-between gap-3 sm:items-center sm:gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Projects</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+            Projects
+          </h1>
           <p className="text-muted-foreground text-sm sm:text-base">
             Manage your projects and track progress.
           </p>
@@ -708,28 +823,43 @@ export default function ProjectsPage() {
         )}
       </div>
 
-       {deleteToast && (
-         <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 flex items-center justify-between">
-           <p className="text-sm text-rose-700 dark:text-rose-400">
-             Project &quot;{deleteToast}&quot; deleted.
-           </p>
-           <Button size="sm" variant="ghost" onClick={() => setDeleteToast(null)}>Dismiss</Button>
-         </div>
-       )}
+      {deleteToast && (
+        <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 flex items-center justify-between">
+          <p className="text-sm text-rose-700 dark:text-rose-400">
+            Project &quot;{deleteToast}&quot; deleted.
+          </p>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setDeleteToast(null)}
+          >
+            Dismiss
+          </Button>
+        </div>
+      )}
 
-       {toast && (
-         <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 flex items-center justify-between">
-           <p className="text-sm text-emerald-700 dark:text-emerald-400">
-             Project &quot;{toast.projectName}&quot; created successfully.
-           </p>
-           <div className="flex gap-2">
-             <Button size="sm" variant="outline" onClick={() => { router.push(`/projects/${toast.projectId}`); setToast(null); }}>
-               View Project
-             </Button>
-             <Button size="sm" variant="ghost" onClick={() => setToast(null)}>Dismiss</Button>
-           </div>
-         </div>
-       )}
+      {toast && (
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 flex items-center justify-between">
+          <p className="text-sm text-emerald-700 dark:text-emerald-400">
+            Project &quot;{toast.projectName}&quot; created successfully.
+          </p>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                router.push(`/projects/${toast.projectId}`);
+                setToast(null);
+              }}
+            >
+              View Project
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setToast(null)}>
+              Dismiss
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="lg:hidden">
@@ -748,12 +878,11 @@ export default function ProjectsPage() {
       <div
         className={`${mobileFiltersOpen ? "flex" : "hidden"} flex-col gap-3 lg:flex lg:flex-row lg:flex-wrap`}
       >
-        <input
-          type="text"
+        <Input
           placeholder="Search projects..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="h-10 px-3 rounded-lg border border-input bg-background text-sm w-full sm:w-48"
+          className="w-full sm:w-48"
         />
         <select
           value={filter}
@@ -785,7 +914,10 @@ export default function ProjectsPage() {
             </Button>
           </PopoverTrigger>
 
-          <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+          <PopoverContent
+            className="w-[--radix-popover-trigger-width] p-0"
+            align="start"
+          >
             <Command>
               <CommandInput
                 placeholder="Search assignees..."
@@ -808,7 +940,12 @@ export default function ProjectsPage() {
                           );
                         }}
                       >
-                        <Check className={cn("mr-2 h-4 w-4", checked ? "opacity-100" : "opacity-0")} />
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            checked ? "opacity-100" : "opacity-0",
+                          )}
+                        />
                         <span className="truncate">{member.name}</span>
                       </CommandItem>
                     );
@@ -832,17 +969,55 @@ export default function ProjectsPage() {
           onChange={(e) => setSortMode(e.target.value as typeof sortMode)}
           className="h-10 px-3 rounded-lg border border-input bg-background text-sm"
         >
-          <option value="priority">Sort: Priority (Starred, Mine, Due Date)</option>
+          <option value="priority">
+            Sort: Priority (Starred, Mine, Due Date)
+          </option>
           <option value="due_date">Sort: Due Date</option>
           <option value="name">Sort: Name</option>
           <option value="custom">Sort: Custom Order</option>
         </select>
+        <label
+          className={cn(
+            "flex items-center gap-2 text-sm cursor-pointer h-10 px-3 rounded-lg border transition-all",
+            myProjectsOnly
+              ? "bg-primary/10 border-primary/30 text-foreground"
+              : "hover:bg-accent/50 border-border",
+          )}
+        >
+          <Checkbox
+            id="my-projects"
+            checked={myProjectsOnly}
+            onCheckedChange={(checked) => setMyProjectsOnly(checked === true)}
+          />
+          <span className={cn("font-medium", myProjectsOnly && "text-primary")}>
+            My projects
+          </span>
+        </label>
+        <label
+          className={cn(
+            "flex items-center gap-2 text-sm cursor-pointer h-10 px-3 rounded-lg border transition-all",
+            hideCompleted
+              ? "bg-primary/10 border-primary/30 text-foreground"
+              : "hover:bg-accent/50 border-border",
+          )}
+        >
+          <Checkbox
+            id="hide-completed"
+            checked={hideCompleted}
+            onCheckedChange={(checked) => setHideCompleted(checked === true)}
+          />
+          <span className={cn("font-medium", hideCompleted && "text-primary")}>
+            Hide completed
+          </span>
+        </label>
       </div>
 
       {hasActiveControls && (
         <div className="rounded-lg border border-border/60 bg-muted/20 p-2.5 sm:p-3">
           <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="text-xs font-medium text-muted-foreground">Active filters & sorting</p>
+            <p className="text-xs font-medium text-muted-foreground">
+              Active filters & sorting
+            </p>
             <Button
               type="button"
               size="sm"
@@ -864,71 +1039,75 @@ export default function ProjectsPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-          {filter !== "all" && (
-            <button
-              type="button"
-              onClick={() => setFilter("all")}
-              className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-xs"
-            >
-              Status: {filter}
-              <X className="h-3 w-3" />
-            </button>
-          )}
-
-          {sortMode !== "priority" && (
-            <button
-              type="button"
-              onClick={() => setSortMode("priority")}
-              className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-xs"
-            >
-              Sort Mode: {SORT_MODE_LABEL[sortMode]}
-              <X className="h-3 w-3" />
-            </button>
-          )}
-
-          {tableSort && (
-            <button
-              type="button"
-              onClick={() => setTableSort(null)}
-              className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-xs"
-            >
-              Table Sort: {TABLE_SORT_LABEL[tableSort.key]} ({tableSort.direction === "asc" ? "A-Z" : "Z-A"})
-              <X className="h-3 w-3" />
-            </button>
-          )}
-
-          {debouncedSearch.trim() && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearch("");
-                setDebouncedSearch("");
-              }}
-              className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-xs"
-            >
-              Search: {debouncedSearch}
-              <X className="h-3 w-3" />
-            </button>
-          )}
-
-          {selectedMemberIds.map((selectedId) => {
-            const member = dedupedMembers.find((candidate) => candidate.id === selectedId);
-            if (!member) return null;
-            return (
+            {filter !== "all" && (
               <button
-                key={selectedId}
                 type="button"
-                onClick={() =>
-                  setSelectedMemberIds((prev) => prev.filter((id) => id !== selectedId))
-                }
+                onClick={() => setFilter("all")}
                 className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-xs"
               >
-                {member.name}
+                Status: {filter}
                 <X className="h-3 w-3" />
               </button>
-            );
-          })}
+            )}
 
+            {sortMode !== "priority" && (
+              <button
+                type="button"
+                onClick={() => setSortMode("priority")}
+                className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-xs"
+              >
+                Sort Mode: {SORT_MODE_LABEL[sortMode]}
+                <X className="h-3 w-3" />
+              </button>
+            )}
+
+            {tableSort && (
+              <button
+                type="button"
+                onClick={() => setTableSort(null)}
+                className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-xs"
+              >
+                Table Sort: {TABLE_SORT_LABEL[tableSort.key]} (
+                {tableSort.direction === "asc" ? "A-Z" : "Z-A"})
+                <X className="h-3 w-3" />
+              </button>
+            )}
+
+            {debouncedSearch.trim() && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setDebouncedSearch("");
+                }}
+                className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-xs"
+              >
+                Search: {debouncedSearch}
+                <X className="h-3 w-3" />
+              </button>
+            )}
+
+            {selectedMemberIds.map((selectedId) => {
+              const member = dedupedMembers.find(
+                (candidate) => candidate.id === selectedId,
+              );
+              if (!member) return null;
+              return (
+                <button
+                  key={selectedId}
+                  type="button"
+                  onClick={() =>
+                    setSelectedMemberIds((prev) =>
+                      prev.filter((id) => id !== selectedId),
+                    )
+                  }
+                  className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-xs"
+                >
+                  {member.name}
+                  <X className="h-3 w-3" />
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -945,13 +1124,73 @@ export default function ProjectsPage() {
         </div>
       )}
 
+      {(myProjectsOnly || hideCompleted) && !loading && (
+        <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-2.5 text-sm flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-1.5 overflow-hidden">
+            {myProjectsOnly && (
+              <>
+                <span className="text-primary font-medium shrink-0">
+                  Viewing your projects
+                </span>
+                <span className="text-muted-foreground mx-1 shrink-0">•</span>
+                <span className="text-muted-foreground truncate mr-2">
+                  {filteredProjects.length} project
+                  {filteredProjects.length !== 1 ? "s" : ""} assigned to you
+                </span>
+              </>
+            )}
+
+            {myProjectsOnly && hideCompleted && (
+              <div className="h-4 w-px bg-primary/20 mx-2 hidden sm:block shrink-0" />
+            )}
+
+            {hideCompleted && (
+              <>
+                <span className="text-primary font-medium shrink-0">
+                  Hiding completed projects
+                </span>
+                <span className="text-muted-foreground mx-1 shrink-0">•</span>
+                <span className="text-muted-foreground">
+                  {
+                    projects.filter(
+                      (p) => p.status === "completed" || p.status === "closed",
+                    ).length
+                  }{" "}
+                  project
+                  {projects.filter(
+                    (p) => p.status === "completed" || p.status === "closed",
+                  ).length !== 1
+                    ? "s"
+                    : ""}{" "}
+                  hidden
+                </span>
+              </>
+            )}
+          </div>
+
+          <button
+            onClick={() => {
+              setHideCompleted(false);
+              setMyProjectsOnly(false);
+            }}
+            className="text-xs font-medium text-primary hover:underline underline-offset-4 shrink-0"
+          >
+            Disable {myProjectsOnly && hideCompleted ? "filters" : "filter"}
+          </button>
+        </div>
+      )}
+
       {spotlightProjectId && (
         <Card className="glass border-primary/35">
           <CardHeader className="pb-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-xs uppercase tracking-wide text-primary">Quick Project Preview</p>
-                <CardTitle className="mt-1 text-xl">{spotlightProject?.name || "Project preview"}</CardTitle>
+                <p className="text-xs uppercase tracking-wide text-primary">
+                  Quick Project Preview
+                </p>
+                <CardTitle className="mt-1 text-xl">
+                  {spotlightProject?.name || "Project preview"}
+                </CardTitle>
               </div>
               <div className="flex items-center gap-2">
                 {spotlightProject && (
@@ -978,65 +1217,96 @@ export default function ProjectsPage() {
             {spotlightProject ? (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded-lg border border-border/70 bg-background/50 p-3">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Status</p>
-                  <p className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-medium capitalize ${getStatusStyles(spotlightProject.status)}`}>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    Status
+                  </p>
+                  <p
+                    className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-medium capitalize ${getStatusStyles(spotlightProject.status)}`}
+                  >
                     {spotlightProject.status}
                   </p>
                 </div>
                 <div className="rounded-lg border border-border/70 bg-background/50 p-3">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Date Range</p>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    Date Range
+                  </p>
                   <p className="mt-1 text-sm font-medium">
-                    {spotlightProject.start_date || "-"} to {spotlightProject.deadline || "-"}
+                    {spotlightProject.start_date || "-"} to{" "}
+                    {spotlightProject.deadline || "-"}
                   </p>
                 </div>
                 <div className="rounded-lg border border-border/70 bg-background/50 p-3">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Budget</p>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    Budget
+                  </p>
                   <p className="mt-1 text-sm font-medium">
-                    {spotlightProject.budget ? `$${spotlightProject.budget.toLocaleString()}` : "-"}
+                    {spotlightProject.budget
+                      ? `$${spotlightProject.budget.toLocaleString()}`
+                      : "-"}
                   </p>
                 </div>
                 <div className="rounded-lg border border-border/70 bg-background/50 p-3">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Client</p>
-                  <p className="mt-1 text-sm font-medium">{getClientDisplayName(spotlightProject.client_name)}</p>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    Client
+                  </p>
+                  <p className="mt-1 text-sm font-medium">
+                    {getClientDisplayName(spotlightProject.client_name)}
+                  </p>
                 </div>
 
                 <div className="rounded-lg border border-border/70 bg-background/50 p-3 md:col-span-2">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Assigned Team</p>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    Assigned Team
+                  </p>
                   <p className="mt-1 text-sm font-medium">
-                    {getProjectAssigneeNames(spotlightProject).join(", ") || "No members assigned"}
+                    {getProjectAssigneeNames(spotlightProject).join(", ") ||
+                      "No members assigned"}
                   </p>
                 </div>
                 <div className="rounded-lg border border-border/70 bg-background/50 p-3 xl:col-span-2">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Labels</p>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    Labels
+                  </p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {(spotlightProject.labels || []).length > 0 ? (
                       (spotlightProject.labels || []).map((label) => (
-                        <span key={label} className="rounded-full border border-border/70 bg-accent/30 px-2 py-0.5 text-xs">
+                        <span
+                          key={label}
+                          className="rounded-full border border-border/70 bg-accent/30 px-2 py-0.5 text-xs"
+                        >
                           {label}
                         </span>
                       ))
                     ) : (
-                      <span className="text-sm text-muted-foreground">No labels</span>
+                      <span className="text-sm text-muted-foreground">
+                        No labels
+                      </span>
                     )}
                   </div>
                 </div>
 
                 <div className="rounded-lg border border-border/70 bg-background/50 p-3 md:col-span-2 xl:col-span-4">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Description</p>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    Description
+                  </p>
                   <div
                     className="prose prose-sm mt-1 max-h-52 max-w-none overflow-hidden text-sm text-muted-foreground"
-                    title={spotlightProject.description || "No description available."}
+                    title={
+                      spotlightProject.description ||
+                      "No description available."
+                    }
                     dangerouslySetInnerHTML={{
                       __html: spotlightProject.description
                         ? renderMarkdownHtml(spotlightProject.description)
-                        : "<p class=\"text-muted-foreground\">No description available.</p>",
+                        : '<p class="text-muted-foreground">No description available.</p>',
                     }}
                   />
                 </div>
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-                The selected project was not found in the current list. Clear filters or dismiss this preview.
+                The selected project was not found in the current list. Clear
+                filters or dismiss this preview.
               </div>
             )}
           </CardContent>
@@ -1062,7 +1332,11 @@ export default function ProjectsPage() {
                   type="button"
                   size="sm"
                   variant={desktopView === "list" ? "default" : "ghost"}
-                  className={cn("h-8 gap-1.5 px-2.5 text-xs", desktopView === "list" && "bg-primary text-primary-foreground hover:bg-primary/90")}
+                  className={cn(
+                    "h-8 gap-1.5 px-2.5 text-xs",
+                    desktopView === "list" &&
+                      "bg-primary text-primary-foreground hover:bg-primary/90",
+                  )}
                   onClick={() => setDesktopView("list")}
                 >
                   <List className="h-3.5 w-3.5" />
@@ -1072,7 +1346,11 @@ export default function ProjectsPage() {
                   type="button"
                   size="sm"
                   variant={desktopView === "card" ? "default" : "ghost"}
-                  className={cn("h-8 gap-1.5 px-2.5 text-xs", desktopView === "card" && "bg-primary text-primary-foreground hover:bg-primary/90")}
+                  className={cn(
+                    "h-8 gap-1.5 px-2.5 text-xs",
+                    desktopView === "card" &&
+                      "bg-primary text-primary-foreground hover:bg-primary/90",
+                  )}
                   onClick={() => setDesktopView("card")}
                 >
                   <LayoutGrid className="h-3.5 w-3.5" />
@@ -1082,9 +1360,10 @@ export default function ProjectsPage() {
             </div>
 
             <div className="divide-y divide-border md:hidden">
-              {sortedProjects.map((project) => {
+              {sortedProjects.slice(0, listVisibleCount).map((project) => {
                 const assigneeMembers = getProjectAssignees(project);
-                const assigneeNames = getProjectAssigneeNames(project).join(", ");
+                const assigneeNames =
+                  getProjectAssigneeNames(project).join(", ");
                 const assigneeInitials =
                   assigneeMembers
                     .slice(0, 3)
@@ -1109,68 +1388,94 @@ export default function ProjectsPage() {
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-                      <button
-                        type="button"
-                        className="h-6 w-6 flex items-center justify-center rounded-full border border-border bg-background/60 text-muted-foreground shrink-0 btn-glow sm:h-8 sm:w-8"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleStar(project.id);
-                        }}
-                        title={starredIds.includes(project.id) ? "Unstar project" : "Star project"}
-                      >
-                        {starredIds.includes(project.id) ? (
-                          <Star className="h-3 w-3 text-amber-400 sm:h-4 sm:w-4" />
-                        ) : (
-                          <Star className="h-3 w-3 text-muted-foreground sm:h-4 sm:w-4" />
-                        )}
-                      </button>
-                      <div
-                        className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 sm:h-10 sm:w-10"
-                        style={{
-                          backgroundColor: `${project.color || "#8B5CF6"}20`,
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {(() => {
-                          const Icon = ICON_MAP[project.icon || "FolderKanban"] || FolderKanban;
-                          return <Icon className="h-4 w-4 sm:h-5 sm:w-5" style={{ color: project.color || "#8B5CF6" }} />;
-                        })()}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium sm:text-base">{project.name}</p>
-                        {assigneeMembers.length > 0 ? (
-                          <div className="mt-1 flex items-center gap-1.5">
-                            <div className="flex -space-x-2">
-                              {assigneeMembers.slice(0, 4).map((member) => (
-                                <div key={member.id} className="rounded-full border border-background" title={member.name}>
-                                  <MemberAvatar
-                                    name={member.name}
-                                    email={member.email}
-                                    userId={member.user_id}
-                                    sizeClass="h-4 w-4 sm:h-5 sm:w-5"
-                                    textClass="text-[9px]"
-                                  />
-                                </div>
-                              ))}
+                        <button
+                          type="button"
+                          className="h-6 w-6 flex items-center justify-center rounded-full border border-border bg-background/60 text-muted-foreground shrink-0 btn-glow sm:h-8 sm:w-8"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleStar(project.id);
+                          }}
+                          title={
+                            starredIds.includes(project.id)
+                              ? "Unstar project"
+                              : "Star project"
+                          }
+                        >
+                          {starredIds.includes(project.id) ? (
+                            <Star className="h-3 w-3 text-amber-400 sm:h-4 sm:w-4" />
+                          ) : (
+                            <Star className="h-3 w-3 text-muted-foreground sm:h-4 sm:w-4" />
+                          )}
+                        </button>
+                        <div
+                          className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 sm:h-10 sm:w-10"
+                          style={{
+                            backgroundColor: `${project.color || "#8B5CF6"}20`,
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {(() => {
+                            const Icon =
+                              ICON_MAP[project.icon || "FolderKanban"] ||
+                              FolderKanban;
+                            return (
+                              <Icon
+                                className="h-4 w-4 sm:h-5 sm:w-5"
+                                style={{ color: project.color || "#8B5CF6" }}
+                              />
+                            );
+                          })()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium sm:text-base">
+                            {project.name}
+                          </p>
+                          {assigneeMembers.length > 0 ? (
+                            <div className="mt-1 flex items-center gap-1.5">
+                              <div className="flex -space-x-2">
+                                {assigneeMembers.slice(0, 4).map((member) => (
+                                  <div
+                                    key={member.id}
+                                    className="rounded-full border border-background"
+                                    title={member.name}
+                                  >
+                                    <MemberAvatar
+                                      name={member.name}
+                                      email={member.email}
+                                      userId={member.user_id}
+                                      sizeClass="h-4 w-4 sm:h-5 sm:w-5"
+                                      textClass="text-[9px]"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                              {assigneeMembers.length > 4 && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  +{assigneeMembers.length - 4}
+                                </span>
+                              )}
+                              <span className="max-w-[22ch] truncate text-[10px] text-muted-foreground md:hidden">
+                                {assigneeInitials}
+                              </span>
+                              <span className="hidden max-w-[34ch] truncate text-xs text-muted-foreground md:inline">
+                                {assigneeNames}
+                              </span>
                             </div>
-                            {assigneeMembers.length > 4 && (
-                              <span className="text-[10px] text-muted-foreground">+{assigneeMembers.length - 4}</span>
-                            )}
-                            <span className="max-w-[22ch] truncate text-[10px] text-muted-foreground md:hidden">
-                              {assigneeInitials}
-                            </span>
-                            <span className="hidden max-w-[34ch] truncate text-xs text-muted-foreground md:inline">
-                              {assigneeNames}
-                            </span>
-                          </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground truncate">No assignees</p>
-                        )}
-                      </div>
+                          ) : (
+                            <p className="text-xs text-muted-foreground truncate">
+                              No assignees
+                            </p>
+                          )}
+                        </div>
                       </div>
 
                       <div className="flex shrink-0 flex-col items-end gap-1">
-                        <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium", getDeadlineToneClass(deadline.tone))}>
+                        <span
+                          className={cn(
+                            "inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                            getDeadlineToneClass(deadline.tone),
+                          )}
+                        >
                           {deadline.label}
                         </span>
                         <button
@@ -1187,152 +1492,409 @@ export default function ProjectsPage() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
-                      <span className="truncate">{getClientDisplayName(project.client_name)}</span>
-                      <span className="text-right">Budget: {project.budget ? `$${project.budget.toLocaleString()}` : "-"}</span>
+                      <span className="truncate">
+                        {getClientDisplayName(project.client_name)}
+                      </span>
+                      <span className="text-right">
+                        Budget:{" "}
+                        {project.budget
+                          ? `$${project.budget.toLocaleString()}`
+                          : "-"}
+                      </span>
                     </div>
                   </div>
                 );
               })}
+              {sortedProjects.length > listVisibleCount && (
+                <div className="flex justify-center border-t border-border/60 p-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setListVisibleCount((prev) => prev + 10)}
+                  >
+                    View More
+                  </Button>
+                </div>
+              )}
             </div>
 
             <div className="hidden md:block">
               {desktopView === "list" ? (
                 <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-muted/30 text-muted-foreground">
-                    <th className="px-4 py-3 text-left font-medium">
-                      <button type="button" className="inline-flex items-center gap-1 transition-colors hover:text-foreground" onClick={() => toggleTableSort("project")}>
-                        Project
-                        {getSortIcon("project")}
-                      </button>
-                    </th>
-                    <th className="px-4 py-3 text-left font-medium">
-                      <button type="button" className="inline-flex items-center gap-1 transition-colors hover:text-foreground" onClick={() => toggleTableSort("status")}>
-                        Status
-                        {getSortIcon("status")}
-                      </button>
-                    </th>
-                    <th className="px-4 py-3 text-left font-medium">
-                      <button type="button" className="inline-flex items-center gap-1 transition-colors hover:text-foreground" onClick={() => toggleTableSort("deadline")}>
-                        Deadline
-                        {getSortIcon("deadline")}
-                      </button>
-                    </th>
-                    <th className="hidden px-4 py-3 text-left font-medium xl:table-cell">Assigned Team Member</th>
-                    <th className="hidden px-4 py-3 text-right font-medium xl:table-cell">
-                      <button type="button" className="ml-auto inline-flex items-center gap-1 transition-colors hover:text-foreground" onClick={() => toggleTableSort("budget")}>
-                        Budget
-                        {getSortIcon("budget")}
-                      </button>
-                    </th>
-                    <th className="px-4 py-3 text-right font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {desktopSortedProjects.map((project) => {
-                    const assignees = getProjectAssigneeNames(project);
-                    const assigneeMembers = getProjectAssignees(project);
-                    const deadlineInfo = getDeadlineCopy(project.deadline);
-                    return (
-                      <tr
-                        key={project.id}
-                        className={`border-b border-border/70 hover:bg-accent/20 transition-all duration-300 ${highlightProjectId === project.id ? "bg-amber-400/5" : ""}`}
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/30 text-muted-foreground">
+                        <th className="px-4 py-3 text-left font-medium">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
+                            onClick={() => toggleTableSort("project")}
+                          >
+                            Project
+                            {getSortIcon("project")}
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-left font-medium">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
+                            onClick={() => toggleTableSort("status")}
+                          >
+                            Status
+                            {getSortIcon("status")}
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-left font-medium">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
+                            onClick={() => toggleTableSort("deadline")}
+                          >
+                            Deadline
+                            {getSortIcon("deadline")}
+                          </button>
+                        </th>
+                        <th className="hidden px-4 py-3 text-left font-medium xl:table-cell">
+                          Assigned Team Member
+                        </th>
+                        <th className="hidden px-4 py-3 text-right font-medium xl:table-cell">
+                          <button
+                            type="button"
+                            className="ml-auto inline-flex items-center gap-1 transition-colors hover:text-foreground"
+                            onClick={() => toggleTableSort("budget")}
+                          >
+                            Budget
+                            {getSortIcon("budget")}
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-right font-medium">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {desktopSortedProjects
+                        .slice(0, listVisibleCount)
+                        .map((project) => {
+                          const assignees = getProjectAssigneeNames(project);
+                          const assigneeMembers = getProjectAssignees(project);
+                          const deadlineInfo = getDeadlineCopy(
+                            project.deadline,
+                          );
+                          return (
+                            <tr
+                              key={project.id}
+                              className={`border-b border-border/70 hover:bg-accent/20 transition-all duration-300 ${highlightProjectId === project.id ? "bg-amber-400/5" : ""}`}
+                            >
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <button
+                                    type="button"
+                                    className="h-8 w-8 flex items-center justify-center rounded-full border border-border bg-background/60 text-muted-foreground shrink-0 btn-glow"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleStar(project.id);
+                                    }}
+                                    title={
+                                      starredIds.includes(project.id)
+                                        ? "Unstar project"
+                                        : "Star project"
+                                    }
+                                  >
+                                    {starredIds.includes(project.id) ? (
+                                      <Star className="h-4 w-4 text-amber-400" />
+                                    ) : (
+                                      <Star className="h-4 w-4 text-muted-foreground" />
+                                    )}
+                                  </button>
+                                  <div
+                                    className="h-10 w-10 rounded-lg flex items-center justify-center shrink-0"
+                                    style={{
+                                      backgroundColor: `${project.color || "#8B5CF6"}20`,
+                                    }}
+                                  >
+                                    {(() => {
+                                      const Icon =
+                                        ICON_MAP[
+                                          project.icon || "FolderKanban"
+                                        ] || FolderKanban;
+                                      return (
+                                        <Icon
+                                          className="h-5 w-5"
+                                          style={{
+                                            color: project.color || "#8B5CF6",
+                                          }}
+                                        />
+                                      );
+                                    })()}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <button
+                                      type="button"
+                                      className="max-w-full truncate text-left font-medium text-foreground hover:text-primary"
+                                      onClick={() =>
+                                        router.push(`/projects/${project.id}`)
+                                      }
+                                      title={`Open ${project.name}`}
+                                    >
+                                      {project.name}
+                                    </button>
+                                    <p className="text-xs text-muted-foreground truncate">
+                                      {typeof project.task_count === "number"
+                                        ? `${project.task_count} task${project.task_count === 1 ? "" : "s"}`
+                                        : "No task count"}
+                                    </p>
+                                    {/* Tablet-only member preview (hidden on xl where separate column shows) */}
+                                    {assigneeMembers.length > 0 && (
+                                      <div className="mt-1 hidden md:flex xl:hidden items-center gap-1.5">
+                                        <div className="flex -space-x-1">
+                                          {assigneeMembers
+                                            .slice(0, 4)
+                                            .map((member) => (
+                                              <div
+                                                key={member.id}
+                                                className="rounded-full border border-background"
+                                                title={member.name}
+                                              >
+                                                <MemberAvatar
+                                                  name={member.name}
+                                                  email={member.email}
+                                                  userId={member.user_id}
+                                                  sizeClass="h-4 w-4"
+                                                  textClass="text-[8px]"
+                                                />
+                                              </div>
+                                            ))}
+                                        </div>
+                                        {assigneeMembers.length > 4 && (
+                                          <span className="text-[9px] text-muted-foreground">
+                                            +{assigneeMembers.length - 4}
+                                          </span>
+                                        )}
+                                        <span className="truncate text-[10px] text-muted-foreground max-w-[80px]">
+                                          {assigneeMembers
+                                            .slice(0, 4)
+                                            .map((m) =>
+                                              getNameInitials(m.name, m.email),
+                                            )
+                                            .join(", ")}
+                                          {assigneeMembers.length > 4
+                                            ? "…"
+                                            : ""}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span
+                                  className={`inline-flex px-3 py-1 rounded-full text-xs font-medium capitalize ${getStatusStyles(project.status)}`}
+                                  role="button"
+                                  onClick={() => handleStatusChange(project)}
+                                >
+                                  {project.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-muted-foreground">
+                                {project.deadline ? (
+                                  <div className="flex flex-col gap-1">
+                                    <span>{project.deadline}</span>
+                                    <span
+                                      className={cn(
+                                        "inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                                        getDeadlineToneClass(deadlineInfo.tone),
+                                      )}
+                                    >
+                                      {deadlineInfo.label}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  "-"
+                                )}
+                              </td>
+                              <td className="hidden px-4 py-3 text-muted-foreground max-w-80 xl:table-cell">
+                                {assigneeMembers.length > 0 ? (
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex -space-x-2">
+                                      {assigneeMembers
+                                        .slice(0, 5)
+                                        .map((member) => (
+                                          <div
+                                            key={member.id}
+                                            className="rounded-full border border-background"
+                                            title={member.name}
+                                          >
+                                            <MemberAvatar
+                                              name={member.name}
+                                              email={member.email}
+                                              userId={member.user_id}
+                                              sizeClass="h-6 w-6"
+                                              textClass="text-[10px]"
+                                            />
+                                          </div>
+                                        ))}
+                                    </div>
+                                    <span className="truncate text-xs text-muted-foreground">
+                                      {assignees.join(", ")}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  "-"
+                                )}
+                              </td>
+                              <td className="hidden px-4 py-3 text-right font-mono xl:table-cell">
+                                {project.budget
+                                  ? `$${project.budget.toLocaleString()}`
+                                  : "-"}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center justify-end gap-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 px-2 text-[11px] lg:h-9 lg:px-3 lg:text-sm"
+                                    onClick={() => setPreviewProject(project)}
+                                  >
+                                    <Eye className="mr-1.5 h-4 w-4" />
+                                    <span className="hidden md:inline">
+                                      Preview
+                                    </span>
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    className="h-8 px-2 text-[11px] bg-primary text-primary-foreground hover:bg-primary/90 lg:h-9 lg:px-3 lg:text-sm"
+                                    onClick={() =>
+                                      router.push(`/projects/${project.id}`)
+                                    }
+                                  >
+                                    <span className="hidden md:inline">
+                                      Open
+                                    </span>
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                  {desktopSortedProjects.length > listVisibleCount && (
+                    <div className="flex justify-center border-t border-border/60 p-4">
+                      <Button
+                        variant="outline"
+                        onClick={() => setListVisibleCount((prev) => prev + 10)}
                       >
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <button
-                              type="button"
-                              className="h-8 w-8 flex items-center justify-center rounded-full border border-border bg-background/60 text-muted-foreground shrink-0 btn-glow"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleStar(project.id);
-                              }}
-                              title={starredIds.includes(project.id) ? "Unstar project" : "Star project"}
-                            >
-                              {starredIds.includes(project.id) ? (
-                                <Star className="h-4 w-4 text-amber-400" />
-                              ) : (
-                                <Star className="h-4 w-4 text-muted-foreground" />
-                              )}
-                            </button>
-                            <div
-                              className="h-10 w-10 rounded-lg flex items-center justify-center shrink-0"
-                              style={{ backgroundColor: `${project.color || "#8B5CF6"}20` }}
-                            >
-                              {(() => {
-                                const Icon = ICON_MAP[project.icon || "FolderKanban"] || FolderKanban;
-                                return <Icon className="h-5 w-5" style={{ color: project.color || "#8B5CF6" }} />;
-                              })()}
-                            </div>
-                            <div className="min-w-0">
+                        View More
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-3 md:p-4">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {desktopSortedProjects
+                      .slice(0, cardVisibleCount)
+                      .map((project) => {
+                        const assigneeMembers = getProjectAssignees(project);
+                        const deadlineInfo = getDeadlineCopy(project.deadline);
+                        const progress = getProjectCompletionEstimate(
+                          project.status,
+                          project.task_count,
+                        );
+
+                        return (
+                          <div
+                            key={project.id}
+                            className={`rounded-xl border border-border/70 bg-background/60 p-3 transition-all duration-300 hover:border-primary/40 hover:bg-accent/10 ${highlightProjectId === project.id ? "ring-1 ring-amber-400/50 bg-amber-400/5" : ""}`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
                               <button
                                 type="button"
-                                className="max-w-full truncate text-left font-medium text-foreground hover:text-primary"
-                                onClick={() => router.push(`/projects/${project.id}`)}
+                                className="min-w-0 text-left"
+                                onClick={() =>
+                                  router.push(`/projects/${project.id}`)
+                                }
                                 title={`Open ${project.name}`}
                               >
-                                {project.name}
+                                <p className="truncate text-sm font-semibold">
+                                  {project.name}
+                                </p>
+                                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                  {typeof project.task_count === "number"
+                                    ? `${project.task_count} task${project.task_count === 1 ? "" : "s"}`
+                                    : "No task count"}
+                                </p>
                               </button>
-                              <p className="text-xs text-muted-foreground truncate">
-                                {typeof project.task_count === "number"
-                                  ? `${project.task_count} task${project.task_count === 1 ? "" : "s"}`
-                                  : "No task count"}
-                              </p>
-                              {/* Tablet-only member preview (hidden on xl where separate column shows) */}
-                              {assigneeMembers.length > 0 && (
-                                <div className="mt-1 hidden md:flex xl:hidden items-center gap-1.5">
-                                  <div className="flex -space-x-1">
-                                    {assigneeMembers.slice(0, 4).map((member) => (
-                                      <div key={member.id} className="rounded-full border border-background" title={member.name}>
-                                        <MemberAvatar
-                                          name={member.name}
-                                          email={member.email}
-                                          userId={member.user_id}
-                                          sizeClass="h-4 w-4"
-                                          textClass="text-[8px]"
-                                        />
-                                      </div>
-                                    ))}
-                                  </div>
-                                  {assigneeMembers.length > 4 && (
-                                    <span className="text-[9px] text-muted-foreground">+{assigneeMembers.length - 4}</span>
-                                  )}
-                                  <span className="truncate text-[10px] text-muted-foreground max-w-[80px]">
-                                    {assigneeMembers.slice(0, 4).map((m) => getNameInitials(m.name, m.email)).join(", ")}{assigneeMembers.length > 4 ? "…" : ""}
-                                  </span>
-                                </div>
-                              )}
+
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/60 bg-background/70 text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleStar(project.id);
+                                  }}
+                                  title={
+                                    starredIds.includes(project.id)
+                                      ? "Unstar project"
+                                      : "Star project"
+                                  }
+                                >
+                                  <Star
+                                    className={cn(
+                                      "h-3.5 w-3.5",
+                                      starredIds.includes(project.id)
+                                        ? "text-amber-400"
+                                        : "text-muted-foreground",
+                                    )}
+                                  />
+                                </button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-[11px]"
+                                  onClick={() => setPreviewProject(project)}
+                                >
+                                  Preview
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="h-7 px-2 text-[11px] bg-accent text-accent-foreground hover:bg-accent/90"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    router.push(`/projects/${project.id}`);
+                                  }}
+                                >
+                                  Open
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex px-3 py-1 rounded-full text-xs font-medium capitalize ${getStatusStyles(project.status)}`}
-                            role="button"
-                            onClick={() => handleStatusChange(project)}
-                          >
-                            {project.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {project.deadline ? (
-                            <div className="flex flex-col gap-1">
-                              <span>{project.deadline}</span>
-                              <span className={cn("inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] font-medium", getDeadlineToneClass(deadlineInfo.tone))}>
-                                {deadlineInfo.label}
-                              </span>
+
+                            <div className="mt-2">
+                              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                                <span>Progress</span>
+                                <span>{progress}%</span>
+                              </div>
+                              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-primary/15">
+                                <div
+                                  className="h-full rounded-full bg-primary"
+                                  style={{ width: `${progress}%` }}
+                                />
+                              </div>
                             </div>
-                          ) : (
-                            "-"
-                          )}
-                        </td>
-                        <td className="hidden px-4 py-3 text-muted-foreground max-w-80 xl:table-cell">
-                          {assigneeMembers.length > 0 ? (
-                            <div className="flex items-center gap-2">
+
+                            <div className="mt-2.5 flex items-center justify-between gap-2">
                               <div className="flex -space-x-2">
-                                {assigneeMembers.slice(0, 5).map((member) => (
-                                  <div key={member.id} className="rounded-full border border-background" title={member.name}>
+                                {assigneeMembers.slice(0, 4).map((member) => (
+                                  <div
+                                    key={member.id}
+                                    className="rounded-full border border-background"
+                                    title={member.name}
+                                  >
                                     <MemberAvatar
                                       name={member.name}
                                       email={member.email}
@@ -1342,160 +1904,64 @@ export default function ProjectsPage() {
                                     />
                                   </div>
                                 ))}
+                                {assigneeMembers.length > 4 && (
+                                  <div className="flex h-6 w-6 items-center justify-center rounded-full border border-background bg-muted text-[10px] text-muted-foreground">
+                                    +{assigneeMembers.length - 4}
+                                  </div>
+                                )}
                               </div>
-                              <span className="truncate text-xs text-muted-foreground">{assignees.join(", ")}</span>
-                            </div>
-                          ) : (
-                            "-"
-                          )}
-                        </td>
-                        <td className="hidden px-4 py-3 text-right font-mono xl:table-cell">
-                          {project.budget ? `$${project.budget.toLocaleString()}` : "-"}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="h-8 px-2 text-[11px] lg:h-9 lg:px-3 lg:text-sm"
-                              onClick={() => setPreviewProject(project)}
-                            >
-                              <Eye className="mr-1.5 h-4 w-4" />
-                              <span className="hidden md:inline">Preview</span>
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="h-8 px-2 text-[11px] bg-primary text-primary-foreground hover:bg-primary/90 lg:h-9 lg:px-3 lg:text-sm"
-                              onClick={() => router.push(`/projects/${project.id}`)}
-                            >
-                              <span className="hidden md:inline">Open</span>
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-                </div>
-              ) : (
-                <div className="p-3 md:p-4">
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {desktopSortedProjects.map((project) => {
-                      const assigneeMembers = getProjectAssignees(project);
-                      const deadlineInfo = getDeadlineCopy(project.deadline);
-                      const progress = getProjectCompletionEstimate(project.status, project.task_count);
-
-                      return (
-                        <div
-                          key={project.id}
-                          className={`rounded-xl border border-border/70 bg-background/60 p-3 transition-all duration-300 hover:border-primary/40 hover:bg-accent/10 ${highlightProjectId === project.id ? "ring-1 ring-amber-400/50 bg-amber-400/5" : ""}`}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <button
-                              type="button"
-                              className="min-w-0 text-left"
-                              onClick={() => router.push(`/projects/${project.id}`)}
-                              title={`Open ${project.name}`}
-                            >
-                              <p className="truncate text-sm font-semibold">{project.name}</p>
-                              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                                {typeof project.task_count === "number"
-                                  ? `${project.task_count} task${project.task_count === 1 ? "" : "s"}`
-                                  : "No task count"}
-                              </p>
-                            </button>
-
-                             <div className="flex items-center gap-1.5">
-                               <button
-                                 type="button"
-                                 className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/60 bg-background/70 text-muted-foreground hover:border-primary/50 hover:text-foreground"
-                                 onClick={(e) => {
-                                   e.stopPropagation();
-                                   toggleStar(project.id);
-                                 }}
-                                 title={starredIds.includes(project.id) ? "Unstar project" : "Star project"}
-                               >
-                                 <Star className={cn("h-3.5 w-3.5", starredIds.includes(project.id) ? "text-amber-400" : "text-muted-foreground")} />
-                               </button>
-                               <Button
-                                 type="button"
-                                 size="sm"
-                                 variant="outline"
-                                 className="h-7 px-2 text-[11px]"
-                                 onClick={() => setPreviewProject(project)}
-                               >
-                                 Preview
-                               </Button>
-                               <Button
-                                 type="button"
-                                 size="sm"
-                                 className="h-7 px-2 text-[11px] bg-accent text-accent-foreground hover:bg-accent/90"
-                                 onClick={(e) => {
-                                   e.stopPropagation();
-                                   router.push(`/projects/${project.id}`);
-                                 }}
-                               >
-                                 Open
-                               </Button>
-                             </div>
-                          </div>
-
-                          <div className="mt-2">
-                            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                              <span>Progress</span>
-                              <span>{progress}%</span>
-                            </div>
-                            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-primary/15">
-                              <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
-                            </div>
-                          </div>
-
-                          <div className="mt-2.5 flex items-center justify-between gap-2">
-                            <div className="flex -space-x-2">
-                              {assigneeMembers.slice(0, 4).map((member) => (
-                                <div key={member.id} className="rounded-full border border-background" title={member.name}>
-                                  <MemberAvatar
-                                    name={member.name}
-                                    email={member.email}
-                                    userId={member.user_id}
-                                    sizeClass="h-6 w-6"
-                                    textClass="text-[10px]"
-                                  />
-                                </div>
-                              ))}
-                              {assigneeMembers.length > 4 && (
-                                <div className="flex h-6 w-6 items-center justify-center rounded-full border border-background bg-muted text-[10px] text-muted-foreground">
-                                  +{assigneeMembers.length - 4}
-                                </div>
-                              )}
-                            </div>
-                            <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium", getDeadlineToneClass(deadlineInfo.tone))}>
-                              {deadlineInfo.label}
-                            </span>
-                          </div>
-
-                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                            <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${getStatusStyles(project.status)}`}>
-                              {project.status}
-                            </span>
-                            {(project.labels || []).slice(0, 2).map((label) => (
-                              <span key={label} className="inline-flex rounded-full border border-border/70 bg-accent/30 px-2 py-0.5 text-[10px]">
-                                {label}
+                              <span
+                                className={cn(
+                                  "inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                                  getDeadlineToneClass(deadlineInfo.tone),
+                                )}
+                              >
+                                {deadlineInfo.label}
                               </span>
-                            ))}
-                          </div>
+                            </div>
 
-                           <div className="mt-2.5 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                            <span className="truncate">{getClientDisplayName(project.client_name)}</span>
-                            <span className="font-mono">{project.budget ? `$${project.budget.toLocaleString()}` : "-"}</span>
+                            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                              <span
+                                className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${getStatusStyles(project.status)}`}
+                              >
+                                {project.status}
+                              </span>
+                              {(project.labels || [])
+                                .slice(0, 2)
+                                .map((label) => (
+                                  <span
+                                    key={label}
+                                    className="inline-flex rounded-full border border-border/70 bg-accent/30 px-2 py-0.5 text-[10px]"
+                                  >
+                                    {label}
+                                  </span>
+                                ))}
+                            </div>
+
+                            <div className="mt-2.5 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                              <span className="truncate">
+                                {getClientDisplayName(project.client_name)}
+                              </span>
+                              <span className="font-mono">
+                                {project.budget
+                                  ? `$${project.budget.toLocaleString()}`
+                                  : "-"}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
                   </div>
+                  {desktopSortedProjects.length > cardVisibleCount && (
+                    <div className="flex justify-center mt-6">
+                      <Button
+                        variant="outline"
+                        onClick={() => setCardVisibleCount((prev) => prev + 12)}
+                      >
+                        View More
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1503,28 +1969,36 @@ export default function ProjectsPage() {
         </Card>
       )}
 
-       <ProjectPreviewModal
-         project={previewProject}
-         canEdit={canEdit}
-         availableMembers={dedupedMembers}
-         onClose={() => setPreviewProject(null)}
-         onProjectUpdated={(updated) => {
-           setProjects((prev) => prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
-           setPreviewProject((current) => (current && current.id === updated.id ? { ...current, ...updated } : current));
-         }}
-         onOpenProjectPage={(projectId) => router.push(`/projects/${projectId}`)}
-       />
+      <ProjectPreviewModal
+        project={previewProject}
+        canEdit={canEdit}
+        availableMembers={dedupedMembers}
+        onClose={() => setPreviewProject(null)}
+        onProjectUpdated={(updated) => {
+          setProjects((prev) =>
+            prev.map((item) =>
+              item.id === updated.id ? { ...item, ...updated } : item,
+            ),
+          );
+          setPreviewProject((current) =>
+            current && current.id === updated.id
+              ? { ...current, ...updated }
+              : current,
+          );
+        }}
+        onOpenProjectPage={(projectId) => router.push(`/projects/${projectId}`)}
+      />
 
-        <ProjectFormModal
-          open={addProjectOpen}
-          onOpenChange={setAddProjectOpen}
-          onSuccess={(project) => {
-            handleProjectCreated(project);
-            router.refresh();
-          }}
-          initialMembers={members}
-          initialClients={clients}
-        />
-     </div>
-   );
- }
+      <ProjectFormModal
+        open={addProjectOpen}
+        onOpenChange={setAddProjectOpen}
+        onSuccess={(project) => {
+          handleProjectCreated(project);
+          router.refresh();
+        }}
+        initialMembers={members}
+        initialClients={clients}
+      />
+    </div>
+  );
+}

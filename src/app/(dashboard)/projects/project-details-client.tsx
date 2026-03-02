@@ -47,8 +47,18 @@ import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label as UiLabel } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { renderMarkdownHtml } from "@/lib/markdown";
@@ -93,10 +103,21 @@ type ActivityFeedItem = {
 type ProjectDetailsTab = "tasks" | "members" | "activities" | "about";
 
 function isProjectDetailsTab(value: string): value is ProjectDetailsTab {
-  return value === "tasks" || value === "members" || value === "activities" || value === "about";
+  return (
+    value === "tasks" ||
+    value === "members" ||
+    value === "activities" ||
+    value === "about"
+  );
 }
 
-type ProjectTimelineBucket = "overdue" | "today" | "upcoming" | "later" | "done" | "no_due";
+type ProjectTimelineBucket =
+  | "overdue"
+  | "today"
+  | "upcoming"
+  | "later"
+  | "done"
+  | "no_due";
 
 const getClientDisplayName = (clientName?: string | null) => {
   const normalized = clientName?.trim();
@@ -126,7 +147,20 @@ const PROJECT_STATUSES: ProjectResponse["status"][] = [
   "closed",
 ];
 
-const PRIORITIES: NewProjectTask["priority"][] = ["low", "medium", "high", "urgent"];
+const PRIORITIES: NewProjectTask["priority"][] = [
+  "low",
+  "medium",
+  "high",
+  "urgent",
+];
+
+const STATUS_COLORS: Record<ProjectResponse["status"], string> = {
+  active: "bg-emerald-500",
+  "in-progress": "bg-blue-500",
+  "on-hold": "bg-amber-500",
+  completed: "bg-violet-500",
+  closed: "bg-zinc-500",
+};
 
 const PROJECT_ICON_MAP: Record<
   string,
@@ -174,15 +208,20 @@ function toReadableDate(value: string | null) {
 }
 
 function taskStatusClass(status: ProjectTask["status"]) {
-  if (status === "done") return "bg-emerald-500/15 text-emerald-700 border-emerald-500/30";
-  if (status === "in-progress") return "bg-sky-500/15 text-sky-700 border-sky-500/30";
+  if (status === "done")
+    return "bg-emerald-500/15 text-emerald-700 border-emerald-500/30";
+  if (status === "in-progress")
+    return "bg-sky-500/15 text-sky-700 border-sky-500/30";
   return "bg-amber-500/15 text-amber-700 border-amber-500/30";
 }
 
 function taskPriorityClass(priority: ProjectTask["priority"]) {
-  if (priority === "urgent") return "bg-rose-500/15 text-rose-700 border-rose-500/30";
-  if (priority === "high") return "bg-orange-500/15 text-orange-700 border-orange-500/30";
-  if (priority === "medium") return "bg-indigo-500/15 text-indigo-700 border-indigo-500/30";
+  if (priority === "urgent")
+    return "bg-rose-500/15 text-rose-700 border-rose-500/30";
+  if (priority === "high")
+    return "bg-orange-500/15 text-orange-700 border-orange-500/30";
+  if (priority === "medium")
+    return "bg-indigo-500/15 text-indigo-700 border-indigo-500/30";
   return "bg-zinc-500/15 text-zinc-700 border-zinc-500/30";
 }
 
@@ -217,7 +256,8 @@ function getMultilinePreviewData(text: string, maxLines = 4, maxChars = 360) {
   }
 
   const preview = selected.join("\n");
-  const truncated = normalized.length > preview.length || lines.length > selected.length;
+  const truncated =
+    normalized.length > preview.length || lines.length > selected.length;
 
   return {
     preview: truncated ? `${preview.replace(/\s+$/, "")}...` : preview,
@@ -225,14 +265,25 @@ function getMultilinePreviewData(text: string, maxLines = 4, maxChars = 360) {
   };
 }
 
-function getProjectTaskDueInfo(dueDate: string | null, status: ProjectTask["status"]) {
+function getProjectTaskDueInfo(
+  dueDate: string | null,
+  status: ProjectTask["status"],
+) {
   if (!dueDate) {
-    return { label: "No due date", bucket: "no_due" as ProjectTimelineBucket, tone: "text-muted-foreground" };
+    return {
+      label: "No due date",
+      bucket: "no_due" as ProjectTimelineBucket,
+      tone: "text-muted-foreground",
+    };
   }
 
   const due = new Date(dueDate);
   if (Number.isNaN(due.getTime())) {
-    return { label: "Invalid due date", bucket: "no_due" as ProjectTimelineBucket, tone: "text-muted-foreground" };
+    return {
+      label: "Invalid due date",
+      bucket: "no_due" as ProjectTimelineBucket,
+      tone: "text-muted-foreground",
+    };
   }
 
   const today = new Date();
@@ -258,7 +309,11 @@ function getProjectTaskDueInfo(dueDate: string | null, status: ProjectTask["stat
   }
 
   if (diffDays === 0) {
-    return { label: "Due today", bucket: "today" as ProjectTimelineBucket, tone: "text-orange-600 dark:text-orange-400" };
+    return {
+      label: "Due today",
+      bucket: "today" as ProjectTimelineBucket,
+      tone: "text-orange-600 dark:text-orange-400",
+    };
   }
 
   if (diffDays <= 7) {
@@ -276,7 +331,13 @@ function getProjectTaskDueInfo(dueDate: string | null, status: ProjectTask["stat
   };
 }
 
-function Label({ children, required }: { children: React.ReactNode; required?: boolean }) {
+function Label({
+  children,
+  required,
+}: {
+  children: React.ReactNode;
+  required?: boolean;
+}) {
   return (
     <label className="text-sm font-medium text-foreground">
       {children}
@@ -319,11 +380,15 @@ function LabelInput({
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (disabled) return;
-    
+
     if (e.key === "Enter" || e.key === ",") {
       e.preventDefault();
       addLabel();
-    } else if (e.key === "Backspace" && inputValue === "" && labels.length > 0) {
+    } else if (
+      e.key === "Backspace" &&
+      inputValue === "" &&
+      labels.length > 0
+    ) {
       removeLabel(labels.length - 1);
     }
   };
@@ -366,7 +431,9 @@ function LabelInput({
           onKeyDown={handleKeyDown}
           onBlur={addLabel}
           disabled={disabled}
-          placeholder={labels.length === 0 ? "Type and press Enter or comma..." : ""}
+          placeholder={
+            labels.length === 0 ? "Type and press Enter or comma..." : ""
+          }
           className="flex-1 min-w-[150px] bg-transparent outline-none text-sm placeholder:text-muted-foreground disabled:opacity-50"
         />
       </div>
@@ -377,7 +444,13 @@ function LabelInput({
   );
 }
 
-function MarkdownEditor({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function MarkdownEditor({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const wrapSelection = (before: string, after = before) => {
@@ -413,13 +486,69 @@ function MarkdownEditor({ value, onChange }: { value: string; onChange: (value: 
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-1 rounded-md border border-border/60 bg-muted/30 p-1">
-        <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => wrapSelection("**")}>Bold</Button>
-        <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => wrapSelection("*")}>Italic</Button>
-        <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => wrapSelection("`")}>Code</Button>
-        <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => wrapSelection("[", "](https://)")}>Link</Button>
-        <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => insertPrefix("# ")}>H1</Button>
-        <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => insertPrefix("- ")}>List</Button>
-        <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => insertPrefix("> ")}>Quote</Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2 text-xs"
+          onClick={() => wrapSelection("**")}
+        >
+          Bold
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2 text-xs"
+          onClick={() => wrapSelection("*")}
+        >
+          Italic
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2 text-xs"
+          onClick={() => wrapSelection("`")}
+        >
+          Code
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2 text-xs"
+          onClick={() => wrapSelection("[", "](https://)")}
+        >
+          Link
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2 text-xs"
+          onClick={() => insertPrefix("# ")}
+        >
+          H1
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2 text-xs"
+          onClick={() => insertPrefix("- ")}
+        >
+          List
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2 text-xs"
+          onClick={() => insertPrefix("> ")}
+        >
+          Quote
+        </Button>
       </div>
 
       <div className="grid gap-2 lg:grid-cols-2">
@@ -432,13 +561,15 @@ function MarkdownEditor({ value, onChange }: { value: string; onChange: (value: 
           className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y"
         />
         <div className="rounded-lg border border-border/70 bg-background/60 p-3">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Preview</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Preview
+          </p>
           <div
             className="prose prose-sm max-w-none text-xs text-muted-foreground sm:text-sm"
             dangerouslySetInnerHTML={{
               __html: value.trim()
                 ? renderMarkdownHtml(value)
-                : "<p class=\"text-muted-foreground\">Nothing to preview yet.</p>",
+                : '<p class="text-muted-foreground">Nothing to preview yet.</p>',
             }}
           />
         </div>
@@ -484,7 +615,9 @@ function ClientPicker({
               {selectedClient.name}
             </span>
           ) : (
-            <span className="text-muted-foreground truncate">Select a client</span>
+            <span className="text-muted-foreground truncate">
+              Select a client
+            </span>
           )}
           <div className="flex items-center gap-1">
             {selectedClient && (
@@ -503,9 +636,18 @@ function ClientPicker({
           </div>
         </Button>
       </PopoverTrigger>
-       <PopoverContent className="w-[--radix-popover-trigger-width] max-h-[300px] overflow-y-auto p-0" align="start">
-         <Command>
-           <CommandInput placeholder="Search clients..." className={cn(size === "compact" ? "h-9" : "h-11", "no-global-focus-ring border-0 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none")} />
+      <PopoverContent
+        className="w-[--radix-popover-trigger-width] max-h-[300px] overflow-y-auto p-0"
+        align="start"
+      >
+        <Command>
+          <CommandInput
+            placeholder="Search clients..."
+            className={cn(
+              size === "compact" ? "h-9" : "h-11",
+              "no-global-focus-ring border-0 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none",
+            )}
+          />
           <CommandList className="max-h-[200px]">
             <CommandEmpty>No client found.</CommandEmpty>
             <CommandGroup>
@@ -521,7 +663,9 @@ function ClientPicker({
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      selectedClient?.id === client.id ? "opacity-100" : "opacity-0",
+                      selectedClient?.id === client.id
+                        ? "opacity-100"
+                        : "opacity-0",
                     )}
                   />
                   <Building2 className="mr-2 h-4 w-4 text-muted-foreground" />
@@ -600,9 +744,15 @@ function MemberPicker({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-       <PopoverContent className="w-[360px] max-h-[300px] overflow-y-auto p-0" align="start">
-         <Command>
-           <CommandInput placeholder="Search members..." className="h-11 no-global-focus-ring border-0 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none" />
+      <PopoverContent
+        className="w-[360px] max-h-[300px] overflow-y-auto p-0"
+        align="start"
+      >
+        <Command>
+          <CommandInput
+            placeholder="Search members..."
+            className="h-11 no-global-focus-ring border-0 outline-none ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none"
+          />
           <CommandList className="max-h-[250px]">
             <CommandEmpty>No members found.</CommandEmpty>
             <CommandGroup>
@@ -615,7 +765,9 @@ function MemberPicker({
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      selectedIds.includes(member.id) ? "opacity-100" : "opacity-0",
+                      selectedIds.includes(member.id)
+                        ? "opacity-100"
+                        : "opacity-0",
                     )}
                   />
                   <MemberAvatar
@@ -628,7 +780,9 @@ function MemberPicker({
                   <div className="ml-2 flex flex-col">
                     <span className="text-sm font-medium">{member.name}</span>
                     {member.email && (
-                      <span className="text-xs text-muted-foreground">{member.email}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {member.email}
+                      </span>
                     )}
                   </div>
                 </CommandItem>
@@ -690,19 +844,26 @@ export default function ProjectDetailsClient({
   const [labelItems, setLabelItems] = useState<string[]>([]);
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
-  const [formMessage, setFormMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
+  const [formMessage, setFormMessage] = useState<{
+    type: "error" | "success";
+    text: string;
+  } | null>(null);
   const [newClientName, setNewClientName] = useState("");
   const [newClientSaving, setNewClientSaving] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [isDesktopWide, setIsDesktopWide] = useState(false);
-  const [projectActivities, setProjectActivities] = useState<ActivityFeedItem[]>([]);
+  const [projectActivities, setProjectActivities] = useState<
+    ActivityFeedItem[]
+  >([]);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [activitiesHasMore, setActivitiesHasMore] = useState(false);
   const [projectColor, setProjectColor] = useState("#8B5CF6");
   const [projectIcon, setProjectIcon] = useState("FolderKanban");
   const [activeTab, setActiveTab] = useState<ProjectDetailsTab>(() => {
     if (typeof window === "undefined") return "tasks";
-    const stored = window.sessionStorage.getItem("projecthub-project-details-active-tab");
+    const stored = window.sessionStorage.getItem(
+      "projecthub-project-details-active-tab",
+    );
     return stored && isProjectDetailsTab(stored) ? stored : "tasks";
   });
   const [membersEditMode, setMembersEditMode] = useState(false);
@@ -714,13 +875,21 @@ export default function ProjectDetailsClient({
   const [addTasksMode, setAddTasksMode] = useState(false);
   const [newTasks, setNewTasks] = useState<NewProjectTask[]>([]);
   const [newTaskTitle, setNewTaskTitle] = useState("");
-  const [newTaskPriority, setNewTaskPriority] = useState<NewProjectTask["priority"]>("medium");
-  const [newTaskDueDate, setNewTaskDueDate] = useState<Date | undefined>(undefined);
-  const [newTaskAssigneeId, setNewTaskAssigneeId] = useState<string | null>(null);
+  const [newTaskPriority, setNewTaskPriority] =
+    useState<NewProjectTask["priority"]>("medium");
+  const [newTaskDueDate, setNewTaskDueDate] = useState<Date | undefined>(
+    undefined,
+  );
+  const [newTaskAssigneeId, setNewTaskAssigneeId] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.sessionStorage.setItem("projecthub-project-details-active-tab", activeTab);
+    window.sessionStorage.setItem(
+      "projecthub-project-details-active-tab",
+      activeTab,
+    );
   }, [activeTab]);
 
   const selectedMembers = useMemo(
@@ -738,7 +907,10 @@ export default function ProjectDetailsClient({
     const counts = new Map<string, number>();
     for (const task of projectTasks) {
       if (!task.assignee_member_id) continue;
-      counts.set(task.assignee_member_id, (counts.get(task.assignee_member_id) || 0) + 1);
+      counts.set(
+        task.assignee_member_id,
+        (counts.get(task.assignee_member_id) || 0) + 1,
+      );
     }
 
     return [...counts.entries()].map(([memberId, count]) => ({
@@ -749,7 +921,9 @@ export default function ProjectDetailsClient({
   }, [projectTasks, memberNameById]);
   const isViewMode = mode === "view" && !editEnabled;
   const displayAssignees =
-    selectedMembers.length > 0 ? selectedMembers.map((member) => member.name) : projectMemberNames;
+    selectedMembers.length > 0
+      ? selectedMembers.map((member) => member.name)
+      : projectMemberNames;
   const descriptionPreview = useMemo(() => {
     const maxLines = isDesktopWide ? 20 : 4;
     const maxChars = isDesktopWide ? 3000 : 360;
@@ -784,113 +958,128 @@ export default function ProjectDetailsClient({
     void loadLookups();
   }, []);
 
-   useEffect(() => {
-     if (mode !== "view" || !projectId) return;
+  useEffect(() => {
+    if (mode !== "view" || !projectId) return;
 
-     const loadProject = async () => {
-       setLoading(true);
-       setNotFound(false);
-       const response = await fetch(`/api/projects/${projectId}`, { cache: "no-store" });
-       const data = (await response.json().catch(() => null)) as ProjectResponse | null;
+    const loadProject = async () => {
+      setLoading(true);
+      setNotFound(false);
+      const response = await fetch(`/api/projects/${projectId}`, {
+        cache: "no-store",
+      });
+      const data = (await response
+        .json()
+        .catch(() => null)) as ProjectResponse | null;
 
-       if (response.ok && data) {
-         setName(data.name || "");
-         setStatus(data.status || "active");
-         setStartDate(data.start_date || "");
-         setDeadline(data.deadline || "");
-         setBudget(data.budget != null ? String(data.budget) : "");
-         setClientName(data.client_name || "");
-         setDescription(data.description || "");
-         setProjectColor(data.color || "#8B5CF6");
-         setProjectIcon(data.icon || "FolderKanban");
-         setDescriptionExpanded(false);
-         setLabelItems((data.labels || []).join(", ").split(",").filter(Boolean).map(s => s.trim()));
-         const from = parseDateValue(data.start_date);
-         const to = parseDateValue(data.deadline);
-         setDateRange(from || to ? { from, to } : undefined);
-         setMemberIds(
-           (data.project_members || [])
-             .map((item) => item.members?.id)
-             .filter((id): id is string => Boolean(id)),
-         );
-         setProjectMemberNames(
-           Array.from(
-             new Set(
-               (data.project_members || [])
-                 .map((item) => item.members?.name)
-                 .filter((value): value is string => Boolean(value)),
-             ),
-           ),
-         );
-       } else {
-         setNotFound(true);
-       }
-
-       setLoading(false);
-     };
-
-     void loadProject();
-   }, [mode, projectId]);
-
-    useEffect(() => {
-      if (mode !== "view" || !projectId || notFound) {
-        setProjectTasks([]);
-        setTasksLoading(false);
-        return;
+      if (response.ok && data) {
+        setName(data.name || "");
+        setStatus(data.status || "active");
+        setStartDate(data.start_date || "");
+        setDeadline(data.deadline || "");
+        setBudget(data.budget != null ? String(data.budget) : "");
+        setClientName(data.client_name || "");
+        setDescription(data.description || "");
+        setProjectColor(data.color || "#8B5CF6");
+        setProjectIcon(data.icon || "FolderKanban");
+        setDescriptionExpanded(false);
+        setLabelItems(
+          (data.labels || [])
+            .join(", ")
+            .split(",")
+            .filter(Boolean)
+            .map((s) => s.trim()),
+        );
+        const from = parseDateValue(data.start_date);
+        const to = parseDateValue(data.deadline);
+        setDateRange(from || to ? { from, to } : undefined);
+        setMemberIds(
+          (data.project_members || [])
+            .map((item) => item.members?.id)
+            .filter((id): id is string => Boolean(id)),
+        );
+        setProjectMemberNames(
+          Array.from(
+            new Set(
+              (data.project_members || [])
+                .map((item) => item.members?.name)
+                .filter((value): value is string => Boolean(value)),
+            ),
+          ),
+        );
+      } else {
+        setNotFound(true);
       }
 
-      setTasksExpanded(false);
-      setTasksLoading(true);
-      const loadTasks = async () => {
-        try {
-          const response = await fetch(`/api/tasks?projectId=${projectId}`, { cache: "no-store" });
-          const data = await response.json().catch(() => []);
-          if (response.ok && Array.isArray(data)) {
-            setProjectTasks(data);
-          } else {
-            setProjectTasks([]);
-          }
-        } catch {
+      setLoading(false);
+    };
+
+    void loadProject();
+  }, [mode, projectId]);
+
+  useEffect(() => {
+    if (mode !== "view" || !projectId || notFound) {
+      setProjectTasks([]);
+      setTasksLoading(false);
+      return;
+    }
+
+    setTasksExpanded(false);
+    setTasksLoading(true);
+    const loadTasks = async () => {
+      try {
+        const response = await fetch(`/api/tasks?projectId=${projectId}`, {
+          cache: "no-store",
+        });
+        const data = await response.json().catch(() => []);
+        if (response.ok && Array.isArray(data)) {
+          setProjectTasks(data);
+        } else {
           setProjectTasks([]);
-        } finally {
-          setTasksLoading(false);
         }
-      };
-
-      void loadTasks();
-    }, [mode, projectId, notFound]);
-
-    useEffect(() => {
-      if (mode !== "view" || !projectId || notFound) {
-        setProjectActivities([]);
-        setActivitiesLoading(false);
-        setActivitiesHasMore(false);
-        return;
+      } catch {
+        setProjectTasks([]);
+      } finally {
+        setTasksLoading(false);
       }
+    };
 
-      setActivitiesLoading(true);
-      const loadActivities = async () => {
-        try {
-          const response = await fetch(`/api/projects/${projectId}/activities?offset=0&limit=8`, { cache: "no-store" });
-          const data = await response.json().catch(() => null);
-          if (!response.ok || !data || !Array.isArray(data.activities)) {
-            setProjectActivities([]);
-            setActivitiesHasMore(false);
-            return;
-          }
+    void loadTasks();
+  }, [mode, projectId, notFound]);
 
-          setProjectActivities(data.activities as ActivityFeedItem[]);
-          setActivitiesHasMore(Boolean(data.hasMore));
-        } catch {
+  useEffect(() => {
+    if (mode !== "view" || !projectId || notFound) {
+      setProjectActivities([]);
+      setActivitiesLoading(false);
+      setActivitiesHasMore(false);
+      return;
+    }
+
+    setActivitiesLoading(true);
+    const loadActivities = async () => {
+      try {
+        const response = await fetch(
+          `/api/projects/${projectId}/activities?offset=0&limit=8`,
+          { cache: "no-store" },
+        );
+        const data = await response.json().catch(() => null);
+        if (!response.ok || !data || !Array.isArray(data.activities)) {
           setProjectActivities([]);
           setActivitiesHasMore(false);
-        } finally {
-          setActivitiesLoading(false);
+          return;
         }
-      };
 
-      void loadActivities();
-    }, [mode, projectId, notFound]);
+        setProjectActivities(data.activities as ActivityFeedItem[]);
+        setActivitiesHasMore(Boolean(data.hasMore));
+      } catch {
+        setProjectActivities([]);
+        setActivitiesHasMore(false);
+      } finally {
+        setActivitiesLoading(false);
+      }
+    };
+
+    void loadActivities();
+  }, [mode, projectId, notFound]);
 
   const loadMoreActivities = async () => {
     if (!projectId || activitiesLoading || !activitiesHasMore) return;
@@ -908,7 +1097,9 @@ export default function ProjectDetailsClient({
 
       setProjectActivities((prev) => {
         const seen = new Set(prev.map((item) => item.id));
-        const next = (data.activities as ActivityFeedItem[]).filter((item) => !seen.has(item.id));
+        const next = (data.activities as ActivityFeedItem[]).filter(
+          (item) => !seen.has(item.id),
+        );
         return [...prev, ...next];
       });
       setActivitiesHasMore(Boolean(data.hasMore));
@@ -929,12 +1120,17 @@ export default function ProjectDetailsClient({
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
-        setFormMessage({ type: "error", text: data?.error || "Failed to update members" });
+        setFormMessage({
+          type: "error",
+          text: data?.error || "Failed to update members",
+        });
         return;
       }
 
       setProjectMemberNames(
-        members.filter((member) => memberIds.includes(member.id)).map((member) => member.name),
+        members
+          .filter((member) => memberIds.includes(member.id))
+          .map((member) => member.name),
       );
       setMembersEditMode(false);
       setFormMessage({ type: "success", text: "Members updated." });
@@ -969,7 +1165,10 @@ export default function ProjectDetailsClient({
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
-        setFormMessage({ type: "error", text: data?.error || "Failed to update project details" });
+        setFormMessage({
+          type: "error",
+          text: data?.error || "Failed to update project details",
+        });
         return;
       }
 
@@ -1004,7 +1203,7 @@ export default function ProjectDetailsClient({
   const onSave = async () => {
     if (!canEdit || !editEnabled) return;
     setFormMessage(null);
-    
+
     if (!name.trim()) {
       setNameError("Project name is required");
       return;
@@ -1024,7 +1223,8 @@ export default function ProjectDetailsClient({
     };
 
     setSaving(true);
-    const endpoint = mode === "create" ? "/api/projects" : `/api/projects/${projectId}`;
+    const endpoint =
+      mode === "create" ? "/api/projects" : `/api/projects/${projectId}`;
     const method = mode === "create" ? "POST" : "PUT";
 
     const response = await fetch(endpoint, {
@@ -1037,7 +1237,10 @@ export default function ProjectDetailsClient({
 
     if (!response.ok) {
       setSaving(false);
-      setFormMessage({ type: "error", text: data?.error || "Failed to save project" });
+      setFormMessage({
+        type: "error",
+        text: data?.error || "Failed to save project",
+      });
       return;
     }
 
@@ -1052,7 +1255,7 @@ export default function ProjectDetailsClient({
             project_id: data.id,
             status: "todo",
           }),
-        })
+        }),
       );
       await Promise.all(taskPromises);
     }
@@ -1060,7 +1263,10 @@ export default function ProjectDetailsClient({
     setSaving(false);
 
     if (mode === "create" && data?.id) {
-      setFormMessage({ type: "success", text: "Project created successfully." });
+      setFormMessage({
+        type: "success",
+        text: "Project created successfully.",
+      });
       router.push(`/projects/${data.id}`);
       return;
     }
@@ -1074,14 +1280,19 @@ export default function ProjectDetailsClient({
     setFormMessage(null);
     if (!confirm("Delete this project? This cannot be undone.")) return;
 
-    const response = await fetch(`/api/projects/${projectId}`, { method: "DELETE" });
+    const response = await fetch(`/api/projects/${projectId}`, {
+      method: "DELETE",
+    });
     if (response.ok) {
       router.push(`/projects?deleted=${encodeURIComponent(name)}`);
       return;
     }
 
     const data = await response.json().catch(() => null);
-    setFormMessage({ type: "error", text: data?.error || "Failed to delete project" });
+    setFormMessage({
+      type: "error",
+      text: data?.error || "Failed to delete project",
+    });
   };
 
   const onQuickCreateClient = async () => {
@@ -1097,11 +1308,16 @@ export default function ProjectDetailsClient({
 
     if (!response.ok || !data) {
       setNewClientSaving(false);
-      setFormMessage({ type: "error", text: data?.error || "Failed to create client" });
+      setFormMessage({
+        type: "error",
+        text: data?.error || "Failed to create client",
+      });
       return;
     }
 
-    setClients((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+    setClients((prev) =>
+      [...prev, data].sort((a, b) => a.name.localeCompare(b.name)),
+    );
     setClientName(data.name);
     setNewClientName("");
     setFormMessage({ type: "success", text: `Client \"${data.name}\" added.` });
@@ -1123,35 +1339,56 @@ export default function ProjectDetailsClient({
         </div>
       )}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Button variant="outline" onClick={() => router.push("/projects")} className="gap-2">
+        <Button
+          variant="outline"
+          onClick={() => router.push("/projects")}
+          className="gap-2"
+        >
           <ArrowLeft className="h-4 w-4" /> Back to Projects
         </Button>
 
         {mode === "view" && <div />}
       </div>
 
-      <Card className={cn(isViewMode ? "border-0 bg-transparent shadow-none" : "glass border-border/60")}>
+      <Card
+        className={cn(
+          isViewMode
+            ? "border-0 bg-transparent shadow-none"
+            : "glass border-border/60",
+        )}
+      >
         {!(mode === "view" && isViewMode) && (
           <CardHeader className="pb-4">
             <CardTitle className="text-2xl font-semibold">
-              {mode === "create" ? "Create New Project" : name || "Project Details"}
+              {mode === "create"
+                ? "Create New Project"
+                : name || "Project Details"}
             </CardTitle>
           </CardHeader>
         )}
         <CardContent className={cn(isViewMode && "p-0")}>
-           {loading ? (
-             <div className="flex items-center justify-center py-16">
-               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-             </div>
-           ) : notFound ? (
-             <div className="flex flex-col items-center justify-center py-16 text-center">
-               <p className="text-lg font-medium text-muted-foreground">Project not found</p>
-                <p className="text-sm text-muted-foreground mt-1">The project you&apos;re looking for doesn&apos;t exist or has been deleted.</p>
-               <Button variant="outline" className="mt-4" onClick={() => router.push("/projects")}>
-                 Back to Projects
-               </Button>
-             </div>
-           ) : isViewMode ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : notFound ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <p className="text-lg font-medium text-muted-foreground">
+                Project not found
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                The project you&apos;re looking for doesn&apos;t exist or has
+                been deleted.
+              </p>
+              <Button
+                variant="outline"
+                className="mt-4"
+                onClick={() => router.push("/projects")}
+              >
+                Back to Projects
+              </Button>
+            </div>
+          ) : isViewMode ? (
             <div className="space-y-4">
               <div className="rounded-xl border border-border/70 bg-gradient-to-br from-background/60 to-background/30 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1160,14 +1397,26 @@ export default function ProjectDetailsClient({
                       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border/60"
                       style={{ backgroundColor: `${projectColor}20` }}
                     >
-                      <ProjectIcon className="h-4 w-4" style={{ color: projectColor }} />
+                      <ProjectIcon
+                        className="h-4 w-4"
+                        style={{ color: projectColor }}
+                      />
                     </div>
                     <div className="min-w-0">
-                    <p className="truncate text-lg font-semibold">{name || "Project Details"}</p>
-                    <p className="text-xs text-muted-foreground">{projectTasks.length} tasks</p>
+                      <p className="truncate text-lg font-semibold">
+                        {name || "Project Details"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {projectTasks.length} tasks
+                      </p>
+                    </div>
                   </div>
-                  </div>
-                  <span className={cn("inline-flex rounded-full px-2.5 py-1 text-xs font-medium capitalize", projectStatusClass(status))}>
+                  <span
+                    className={cn(
+                      "inline-flex rounded-full px-2.5 py-1 text-xs font-medium capitalize",
+                      projectStatusClass(status),
+                    )}
+                  >
                     {status.replace("-", " ")}
                   </span>
                 </div>
@@ -1175,33 +1424,56 @@ export default function ProjectDetailsClient({
 
               <Tabs
                 value={activeTab}
-                onValueChange={(value) => isProjectDetailsTab(value) && setActiveTab(value)}
+                onValueChange={(value) =>
+                  isProjectDetailsTab(value) && setActiveTab(value)
+                }
                 defaultValue="tasks"
                 className="space-y-3"
               >
                 <TabsList className="grid h-auto w-full grid-cols-4 gap-1 border-0 bg-transparent p-0 lg:flex lg:items-center lg:justify-start lg:gap-2 lg:px-1 lg:rounded-none">
-                  <TabsTrigger value="tasks" className="relative h-10 flex-col items-center justify-center gap-0.5 rounded-md border border-border/60 bg-muted/30 px-1 text-[9px] font-medium data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/60 sm:h-10 sm:flex-row sm:justify-start sm:gap-2 sm:px-2 sm:text-xs lg:h-9 lg:flex-none lg:gap-1.5 lg:px-2.5 lg:text-sm lg:hover:bg-accent/40">
+                  <TabsTrigger
+                    value="tasks"
+                    className="relative h-10 flex-col items-center justify-center gap-0.5 rounded-md border border-border/60 bg-muted/30 px-1 text-[9px] font-medium data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/60 sm:h-10 sm:flex-row sm:justify-start sm:gap-2 sm:px-2 sm:text-xs lg:h-9 lg:flex-none lg:gap-1.5 lg:px-2.5 lg:text-sm lg:hover:bg-accent/40"
+                  >
                     <ClipboardList className="h-3.5 w-3.5" />
                     <span>Tasks</span>
-                    <Badge variant="secondary" className="absolute right-0.5 top-0.5 inline-flex h-3.5 min-w-3.5 items-center justify-center px-1 text-[8px] leading-none tabular-nums sm:static sm:h-5 sm:min-w-5 sm:px-1.5 sm:text-[10px]">
+                    <Badge
+                      variant="secondary"
+                      className="absolute right-0.5 top-0.5 inline-flex h-3.5 min-w-3.5 items-center justify-center px-1 text-[8px] leading-none tabular-nums sm:static sm:h-5 sm:min-w-5 sm:px-1.5 sm:text-[10px]"
+                    >
                       {projectTasks.length}
                     </Badge>
                   </TabsTrigger>
-                  <TabsTrigger value="members" className="relative h-10 flex-col items-center justify-center gap-0.5 rounded-md border border-border/60 bg-muted/30 px-1 text-[9px] font-medium data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/60 sm:h-10 sm:flex-row sm:justify-start sm:gap-2 sm:px-2 sm:text-xs lg:h-9 lg:flex-none lg:gap-1.5 lg:px-2.5 lg:text-sm lg:hover:bg-accent/40">
+                  <TabsTrigger
+                    value="members"
+                    className="relative h-10 flex-col items-center justify-center gap-0.5 rounded-md border border-border/60 bg-muted/30 px-1 text-[9px] font-medium data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/60 sm:h-10 sm:flex-row sm:justify-start sm:gap-2 sm:px-2 sm:text-xs lg:h-9 lg:flex-none lg:gap-1.5 lg:px-2.5 lg:text-sm lg:hover:bg-accent/40"
+                  >
                     <Users className="h-3.5 w-3.5" />
                     <span>Members</span>
-                    <Badge variant="secondary" className="absolute right-0.5 top-0.5 inline-flex h-3.5 min-w-3.5 items-center justify-center px-1 text-[8px] leading-none tabular-nums sm:static sm:h-5 sm:min-w-5 sm:px-1.5 sm:text-[10px]">
+                    <Badge
+                      variant="secondary"
+                      className="absolute right-0.5 top-0.5 inline-flex h-3.5 min-w-3.5 items-center justify-center px-1 text-[8px] leading-none tabular-nums sm:static sm:h-5 sm:min-w-5 sm:px-1.5 sm:text-[10px]"
+                    >
                       {displayAssignees.length}
                     </Badge>
                   </TabsTrigger>
-                  <TabsTrigger value="activities" className="relative h-10 flex-col items-center justify-center gap-0.5 rounded-md border border-border/60 bg-muted/30 px-1 text-[9px] font-medium data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/60 sm:h-10 sm:flex-row sm:justify-start sm:gap-2 sm:px-2 sm:text-xs lg:h-9 lg:flex-none lg:gap-1.5 lg:px-2.5 lg:text-sm lg:hover:bg-accent/40">
+                  <TabsTrigger
+                    value="activities"
+                    className="relative h-10 flex-col items-center justify-center gap-0.5 rounded-md border border-border/60 bg-muted/30 px-1 text-[9px] font-medium data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/60 sm:h-10 sm:flex-row sm:justify-start sm:gap-2 sm:px-2 sm:text-xs lg:h-9 lg:flex-none lg:gap-1.5 lg:px-2.5 lg:text-sm lg:hover:bg-accent/40"
+                  >
                     <Activity className="h-3.5 w-3.5" />
                     <span>Activities</span>
-                    <Badge variant="secondary" className="absolute right-0.5 top-0.5 inline-flex h-3.5 min-w-3.5 items-center justify-center px-1 text-[8px] leading-none tabular-nums sm:static sm:h-5 sm:min-w-5 sm:px-1.5 sm:text-[10px]">
+                    <Badge
+                      variant="secondary"
+                      className="absolute right-0.5 top-0.5 inline-flex h-3.5 min-w-3.5 items-center justify-center px-1 text-[8px] leading-none tabular-nums sm:static sm:h-5 sm:min-w-5 sm:px-1.5 sm:text-[10px]"
+                    >
                       {projectActivities.length}
                     </Badge>
                   </TabsTrigger>
-                  <TabsTrigger value="about" className="h-10 flex-col items-center justify-center gap-0.5 rounded-md border border-border/60 bg-muted/30 px-1 text-[9px] font-medium data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/60 sm:h-10 sm:flex-row sm:justify-start sm:gap-2 sm:px-2 sm:text-xs lg:h-9 lg:flex-none lg:gap-1.5 lg:px-2.5 lg:text-sm lg:hover:bg-accent/40">
+                  <TabsTrigger
+                    value="about"
+                    className="h-10 flex-col items-center justify-center gap-0.5 rounded-md border border-border/60 bg-muted/30 px-1 text-[9px] font-medium data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/60 sm:h-10 sm:flex-row sm:justify-start sm:gap-2 sm:px-2 sm:text-xs lg:h-9 lg:flex-none lg:gap-1.5 lg:px-2.5 lg:text-sm lg:hover:bg-accent/40"
+                  >
                     <CircleHelp className="h-3.5 w-3.5" />
                     <span>About</span>
                   </TabsTrigger>
@@ -1209,9 +1481,18 @@ export default function ProjectDetailsClient({
 
                 <TabsContent value="tasks" className="space-y-2.5 sm:space-y-3">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="hidden text-sm text-muted-foreground sm:block">Most relevant tasks first (overdue, active, then remaining).</p>
+                    <p className="hidden text-sm text-muted-foreground sm:block">
+                      Most relevant tasks first (overdue, active, then
+                      remaining).
+                    </p>
                     {projectId && (
-                      <Button size="sm" className="h-8 bg-primary px-2.5 text-xs text-primary-foreground hover:bg-primary/90 sm:h-9 sm:px-3 sm:text-sm" onClick={() => router.push(`/tasks?projectId=${projectId}`)}>
+                      <Button
+                        size="sm"
+                        className="h-8 bg-primary px-2.5 text-xs text-primary-foreground hover:bg-primary/90 sm:h-9 sm:px-3 sm:text-sm"
+                        onClick={() =>
+                          router.push(`/tasks?projectId=${projectId}`)
+                        }
+                      >
                         Open in Tasks
                       </Button>
                     )}
@@ -1225,13 +1506,25 @@ export default function ProjectDetailsClient({
                     </div>
                   ) : projectTasks.length === 0 ? (
                     <div className="rounded-xl border border-border/70 bg-gradient-to-br from-background/60 to-background/30 p-5">
-                      <p className="text-sm text-muted-foreground">No tasks linked to this project yet.</p>
+                      <p className="text-sm text-muted-foreground">
+                        No tasks linked to this project yet.
+                      </p>
                     </div>
                   ) : (
                     <div className="rounded-xl border border-border/70 bg-gradient-to-br from-background/60 to-background/30 p-4 sm:p-5 lg:p-6">
                       {(() => {
-                        const bucketOrder: ProjectTimelineBucket[] = ["overdue", "today", "upcoming", "later", "done", "no_due"];
-                        const bucketLabel: Record<ProjectTimelineBucket, string> = {
+                        const bucketOrder: ProjectTimelineBucket[] = [
+                          "overdue",
+                          "today",
+                          "upcoming",
+                          "later",
+                          "done",
+                          "no_due",
+                        ];
+                        const bucketLabel: Record<
+                          ProjectTimelineBucket,
+                          string
+                        > = {
                           overdue: "Overdue",
                           today: "Due Today",
                           upcoming: "Due in 1-7 Days",
@@ -1240,9 +1533,14 @@ export default function ProjectDetailsClient({
                           no_due: "No Due Date",
                         };
 
-                        const bucketed = projectTasks.reduce<Record<ProjectTimelineBucket, ProjectTask[]>>(
+                        const bucketed = projectTasks.reduce<
+                          Record<ProjectTimelineBucket, ProjectTask[]>
+                        >(
                           (acc, task) => {
-                            const dueInfo = getProjectTaskDueInfo(task.due_date, task.status);
+                            const dueInfo = getProjectTaskDueInfo(
+                              task.due_date,
+                              task.status,
+                            );
                             acc[dueInfo.bucket].push(task);
                             return acc;
                           },
@@ -1253,7 +1551,7 @@ export default function ProjectDetailsClient({
                             later: [],
                             done: [],
                             no_due: [],
-                          }
+                          },
                         );
 
                         return (
@@ -1265,35 +1563,64 @@ export default function ProjectDetailsClient({
                               return (
                                 <div key={bucket} className="space-y-2.5">
                                   <div className="flex items-center justify-between">
-                                    <h3 className="text-sm font-semibold">{bucketLabel[bucket]}</h3>
-                                    <Badge variant="outline" className="text-xs">
+                                    <h3 className="text-sm font-semibold">
+                                      {bucketLabel[bucket]}
+                                    </h3>
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs"
+                                    >
                                       {tasksInBucket.length}
                                     </Badge>
                                   </div>
 
                                   <div className="relative pl-4">
-                                    <div className="pointer-events-none absolute bottom-2 left-1 top-2 w-px bg-border/70" aria-hidden="true" />
+                                    <div
+                                      className="pointer-events-none absolute bottom-2 left-1 top-2 w-px bg-border/70"
+                                      aria-hidden="true"
+                                    />
                                     <div className="space-y-2.5 lg:space-y-3">
                                       {tasksInBucket
                                         .slice()
                                         .sort((a, b) => {
-                                          const aDue = parseDateValue(a.due_date || "")?.getTime() || Number.POSITIVE_INFINITY;
-                                          const bDue = parseDateValue(b.due_date || "")?.getTime() || Number.POSITIVE_INFINITY;
+                                          const aDue =
+                                            parseDateValue(
+                                              a.due_date || "",
+                                            )?.getTime() ||
+                                            Number.POSITIVE_INFINITY;
+                                          const bDue =
+                                            parseDateValue(
+                                              b.due_date || "",
+                                            )?.getTime() ||
+                                            Number.POSITIVE_INFINITY;
                                           return aDue - bDue;
                                         })
                                         .map((task) => {
-                                          const dueInfo = getProjectTaskDueInfo(task.due_date, task.status);
+                                          const dueInfo = getProjectTaskDueInfo(
+                                            task.due_date,
+                                            task.status,
+                                          );
                                           return (
-                                            <div key={task.id} className="relative pl-4">
+                                            <div
+                                              key={task.id}
+                                              className="relative pl-4"
+                                            >
                                               <span
                                                 className={cn(
                                                   "absolute left-[-6px] top-3 h-3 w-3 rounded-full border-2 border-background",
-                                                  dueInfo.bucket === "overdue" && "bg-destructive",
-                                                  dueInfo.bucket === "today" && "bg-orange-500",
-                                                  dueInfo.bucket === "upcoming" && "bg-blue-500",
-                                                  dueInfo.bucket === "later" && "bg-muted-foreground",
-                                                  dueInfo.bucket === "done" && "bg-emerald-500",
-                                                  dueInfo.bucket === "no_due" && "bg-zinc-400"
+                                                  dueInfo.bucket ===
+                                                    "overdue" &&
+                                                    "bg-destructive",
+                                                  dueInfo.bucket === "today" &&
+                                                    "bg-orange-500",
+                                                  dueInfo.bucket ===
+                                                    "upcoming" && "bg-blue-500",
+                                                  dueInfo.bucket === "later" &&
+                                                    "bg-muted-foreground",
+                                                  dueInfo.bucket === "done" &&
+                                                    "bg-emerald-500",
+                                                  dueInfo.bucket === "no_due" &&
+                                                    "bg-zinc-400",
                                                 )}
                                                 aria-hidden="true"
                                               />
@@ -1301,30 +1628,67 @@ export default function ProjectDetailsClient({
                                                 type="button"
                                                 onClick={() => {
                                                   if (projectId) {
-                                                    router.push(`/tasks?projectId=${projectId}&taskId=${task.id}`);
+                                                    router.push(
+                                                      `/tasks?projectId=${projectId}&taskId=${task.id}`,
+                                                    );
                                                     return;
                                                   }
-                                                  router.push(`/tasks?taskId=${task.id}`);
+                                                  router.push(
+                                                    `/tasks?taskId=${task.id}`,
+                                                  );
                                                 }}
                                                 className="w-full rounded-lg border border-border/70 bg-card px-3 py-2.5 text-left transition-colors hover:bg-accent/30 lg:px-4 lg:py-3"
                                               >
                                                 <div className="flex flex-wrap items-start justify-between gap-2">
-                                                  <p className={cn("text-sm font-medium", task.status === "done" && "line-through text-muted-foreground")}>{task.title}</p>
-                                                  <Badge variant="outline" className={cn("capitalize text-[11px]", taskPriorityClass(task.priority))}>
+                                                  <p
+                                                    className={cn(
+                                                      "text-sm font-medium",
+                                                      task.status === "done" &&
+                                                        "line-through text-muted-foreground",
+                                                    )}
+                                                  >
+                                                    {task.title}
+                                                  </p>
+                                                  <Badge
+                                                    variant="outline"
+                                                    className={cn(
+                                                      "capitalize text-[11px]",
+                                                      taskPriorityClass(
+                                                        task.priority,
+                                                      ),
+                                                    )}
+                                                  >
                                                     {task.priority}
                                                   </Badge>
                                                 </div>
                                                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                                                  <Badge variant="outline" className={cn("capitalize text-[10px]", taskStatusClass(task.status))}>
-                                                    {task.status.replace("-", " ")}
+                                                  <Badge
+                                                    variant="outline"
+                                                    className={cn(
+                                                      "capitalize text-[10px]",
+                                                      taskStatusClass(
+                                                        task.status,
+                                                      ),
+                                                    )}
+                                                  >
+                                                    {task.status.replace(
+                                                      "-",
+                                                      " ",
+                                                    )}
                                                   </Badge>
                                                   <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/30 px-1.5 py-0.5 text-foreground/90">
                                                     <Users className="h-3 w-3" />
                                                     {task.assignee_member_id
-                                                      ? (memberNameById.get(task.assignee_member_id) || "Unknown")
+                                                      ? memberNameById.get(
+                                                          task.assignee_member_id,
+                                                        ) || "Unknown"
                                                       : "Unassigned"}
                                                   </span>
-                                                  <span className={cn(dueInfo.tone)}>{dueInfo.label}</span>
+                                                  <span
+                                                    className={cn(dueInfo.tone)}
+                                                  >
+                                                    {dueInfo.label}
+                                                  </span>
                                                 </div>
                                               </button>
                                             </div>
@@ -1342,14 +1706,23 @@ export default function ProjectDetailsClient({
                   )}
                 </TabsContent>
 
-                <TabsContent value="members" className="space-y-2.5 sm:space-y-3">
+                <TabsContent
+                  value="members"
+                  className="space-y-2.5 sm:space-y-3"
+                >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="hidden text-sm text-muted-foreground sm:block">Assigned team members for this project.</p>
+                    <p className="hidden text-sm text-muted-foreground sm:block">
+                      Assigned team members for this project.
+                    </p>
                     {canEdit && (
                       <Button
                         size="sm"
                         variant={membersEditMode ? "destructive" : "default"}
-                        className={membersEditMode ? "h-8 px-2.5 text-xs sm:h-9 sm:px-3 sm:text-sm" : "h-8 bg-primary px-2.5 text-xs text-primary-foreground hover:bg-primary/90 sm:h-9 sm:px-3 sm:text-sm"}
+                        className={
+                          membersEditMode
+                            ? "h-8 px-2.5 text-xs sm:h-9 sm:px-3 sm:text-sm"
+                            : "h-8 bg-primary px-2.5 text-xs text-primary-foreground hover:bg-primary/90 sm:h-9 sm:px-3 sm:text-sm"
+                        }
                         onClick={() => setMembersEditMode((open) => !open)}
                       >
                         {membersEditMode ? "Cancel" : "Edit Members"}
@@ -1381,7 +1754,9 @@ export default function ProjectDetailsClient({
                               )}
                             >
                               <span className="truncate">{member.name}</span>
-                              <span className="text-muted-foreground">{selected ? "Assigned" : "Assign"}</span>
+                              <span className="text-muted-foreground">
+                                {selected ? "Assigned" : "Assign"}
+                              </span>
                             </button>
                           );
                         })}
@@ -1398,49 +1773,82 @@ export default function ProjectDetailsClient({
                       </div>
                     </div>
                   ) : (
-                  <div className="rounded-xl border border-border/70 bg-gradient-to-br from-background/60 to-background/30 p-4 sm:p-5">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Project members</p>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedMembers.length > 0 ? selectedMembers.map((member) => (
-                        <button key={member.id} type="button" onClick={() => router.push(`/team/${member.id}`)} className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/60 px-2 py-1 text-xs hover:border-primary/50 hover:bg-primary/10">
-                          <MemberAvatar name={member.name} email={member.email} avatarUrl={member.avatar_url} sizeClass="h-6 w-6" textClass="text-[9px]" />
-                          {member.name}
-                        </button>
-                      )) : (
-                        <p className="text-sm text-muted-foreground">No members assigned.</p>
-                      )}
-                    </div>
+                    <div className="rounded-xl border border-border/70 bg-gradient-to-br from-background/60 to-background/30 p-4 sm:p-5">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Project members
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedMembers.length > 0 ? (
+                          selectedMembers.map((member) => (
+                            <button
+                              key={member.id}
+                              type="button"
+                              onClick={() => router.push(`/team/${member.id}`)}
+                              className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/60 px-2 py-1 text-xs hover:border-primary/50 hover:bg-primary/10"
+                            >
+                              <MemberAvatar
+                                name={member.name}
+                                email={member.email}
+                                avatarUrl={member.avatar_url}
+                                sizeClass="h-6 w-6"
+                                textClass="text-[9px]"
+                              />
+                              {member.name}
+                            </button>
+                          ))
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            No members assigned.
+                          </p>
+                        )}
+                      </div>
 
-                    <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Task assignees</p>
-                    <div className="space-y-2">
-                      {taskAssigneeSummary.length > 0 ? taskAssigneeSummary.map((summary) => (
-                        <button
-                          key={summary.memberId}
-                          type="button"
-                          onClick={() => router.push(`/team/${summary.memberId}`)}
-                          className="flex w-full items-center justify-between rounded-md border border-border/60 bg-background/60 p-2 text-left transition-colors hover:border-primary/50 hover:bg-primary/10"
-                        >
-                          <p className="text-xs font-medium sm:text-sm">{summary.memberName}</p>
-                          <Badge variant="outline" className="text-[10px]">
-                            {summary.count} task{summary.count === 1 ? "" : "s"}
-                          </Badge>
-                        </button>
-                      )) : (
-                        <p className="text-sm text-muted-foreground">No task assignees yet.</p>
-                      )}
+                      <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Task assignees
+                      </p>
+                      <div className="space-y-2">
+                        {taskAssigneeSummary.length > 0 ? (
+                          taskAssigneeSummary.map((summary) => (
+                            <button
+                              key={summary.memberId}
+                              type="button"
+                              onClick={() =>
+                                router.push(`/team/${summary.memberId}`)
+                              }
+                              className="flex w-full items-center justify-between rounded-md border border-border/60 bg-background/60 p-2 text-left transition-colors hover:border-primary/50 hover:bg-primary/10"
+                            >
+                              <p className="text-xs font-medium sm:text-sm">
+                                {summary.memberName}
+                              </p>
+                              <Badge variant="outline" className="text-[10px]">
+                                {summary.count} task
+                                {summary.count === 1 ? "" : "s"}
+                              </Badge>
+                            </button>
+                          ))
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            No task assignees yet.
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </div>
                   )}
                 </TabsContent>
 
-                <TabsContent value="activities" className="space-y-2.5 sm:space-y-3">
+                <TabsContent
+                  value="activities"
+                  className="space-y-2.5 sm:space-y-3"
+                >
                   <div className="rounded-xl border border-border/70 bg-gradient-to-br from-background/60 to-background/30 p-4 sm:p-5">
                     {activitiesLoading && projectActivities.length === 0 ? (
                       <div className="flex items-center justify-center py-8">
                         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                       </div>
                     ) : projectActivities.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No activity available yet.</p>
+                      <p className="text-sm text-muted-foreground">
+                        No activity available yet.
+                      </p>
                     ) : (
                       <>
                         <div className="relative pl-4 sm:pl-5">
@@ -1448,13 +1856,31 @@ export default function ProjectDetailsClient({
                           <div className="space-y-2 sm:space-y-3">
                             {projectActivities.map((activity) => (
                               <div key={activity.id} className="relative">
-                                <span className={cn("pointer-events-none absolute -left-[15px] top-2.5 h-3 w-3 rounded-full border border-border bg-background sm:-left-[20px] sm:top-3 sm:h-3.5 sm:w-3.5", activity.tone === "success" && "bg-emerald-400/80", activity.tone === "warn" && "bg-amber-400/80", activity.tone === "neutral" && "bg-zinc-400/80")} />
+                                <span
+                                  className={cn(
+                                    "pointer-events-none absolute -left-[15px] top-2.5 h-3 w-3 rounded-full border border-border bg-background sm:-left-[20px] sm:top-3 sm:h-3.5 sm:w-3.5",
+                                    activity.tone === "success" &&
+                                      "bg-emerald-400/80",
+                                    activity.tone === "warn" &&
+                                      "bg-amber-400/80",
+                                    activity.tone === "neutral" &&
+                                      "bg-zinc-400/80",
+                                  )}
+                                />
                                 <div className="rounded-lg border border-border/60 bg-background/60 px-2.5 py-2 sm:px-3">
                                   <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <p className="text-xs font-semibold sm:text-sm">{activity.title}</p>
-                                    <span className="text-[10px] text-muted-foreground sm:text-[11px]">{new Date(activity.timestamp).toLocaleString()}</span>
+                                    <p className="text-xs font-semibold sm:text-sm">
+                                      {activity.title}
+                                    </p>
+                                    <span className="text-[10px] text-muted-foreground sm:text-[11px]">
+                                      {new Date(
+                                        activity.timestamp,
+                                      ).toLocaleString()}
+                                    </span>
                                   </div>
-                                  <p className="mt-1 text-xs text-muted-foreground">{activity.detail}</p>
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    {activity.detail}
+                                  </p>
                                 </div>
                               </div>
                             ))}
@@ -1463,7 +1889,14 @@ export default function ProjectDetailsClient({
 
                         {activitiesHasMore && (
                           <div className="mt-3 flex justify-end">
-                            <Button type="button" variant="outline" size="sm" className="h-8 px-2.5 text-xs sm:h-9 sm:px-3 sm:text-sm" onClick={loadMoreActivities} disabled={activitiesLoading}>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 px-2.5 text-xs sm:h-9 sm:px-3 sm:text-sm"
+                              onClick={loadMoreActivities}
+                              disabled={activitiesLoading}
+                            >
                               {activitiesLoading ? "Loading..." : "Load more"}
                             </Button>
                           </div>
@@ -1475,12 +1908,18 @@ export default function ProjectDetailsClient({
 
                 <TabsContent value="about" className="space-y-2 sm:space-y-3">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="hidden text-sm text-muted-foreground sm:block">Project details and metadata.</p>
+                    <p className="hidden text-sm text-muted-foreground sm:block">
+                      Project details and metadata.
+                    </p>
                     {canEdit && (
                       <Button
                         size="sm"
                         variant={aboutEditMode ? "destructive" : "default"}
-                        className={aboutEditMode ? "h-8 px-2.5 text-xs sm:h-9 sm:px-3 sm:text-sm" : "h-8 bg-primary px-2.5 text-xs text-primary-foreground hover:bg-primary/90 sm:h-9 sm:px-3 sm:text-sm"}
+                        className={
+                          aboutEditMode
+                            ? "h-8 px-2.5 text-xs sm:h-9 sm:px-3 sm:text-sm"
+                            : "h-8 bg-primary px-2.5 text-xs text-primary-foreground hover:bg-primary/90 sm:h-9 sm:px-3 sm:text-sm"
+                        }
                         onClick={() => setAboutEditMode((open) => !open)}
                       >
                         {aboutEditMode ? "Cancel" : "Edit Details"}
@@ -1491,12 +1930,18 @@ export default function ProjectDetailsClient({
                   <div className="rounded-xl border border-border/70 bg-gradient-to-br from-background/60 to-background/30 p-4 sm:p-5">
                     {aboutEditMode && (
                       <div className="rounded-lg border border-border/70 bg-background/50 p-3 sm:p-4">
-                        <UiLabel htmlFor="project-about-name" className="text-[10px] uppercase tracking-wide text-muted-foreground sm:text-[11px]">
+                        <UiLabel
+                          htmlFor="project-about-name"
+                          className="text-[10px] uppercase tracking-wide text-muted-foreground sm:text-[11px]"
+                        >
                           Project Name
                         </UiLabel>
                         <Input
                           id="project-about-name"
-                          className={cn("mt-1 h-8 text-xs sm:h-9 sm:text-sm", nameError && "border-destructive")}
+                          className={cn(
+                            "mt-1 h-8 text-xs sm:h-9 sm:text-sm",
+                            nameError && "border-destructive",
+                          )}
                           value={name}
                           onChange={(e) => {
                             setName(e.target.value);
@@ -1504,13 +1949,36 @@ export default function ProjectDetailsClient({
                           }}
                           placeholder="Enter project name"
                         />
-                        {nameError && <p className="mt-1 text-xs text-destructive">{nameError}</p>}
+                        {nameError && (
+                          <p className="mt-1 text-xs text-destructive">
+                            {nameError}
+                          </p>
+                        )}
                       </div>
                     )}
 
-                    <div className={cn("grid grid-cols-2 gap-2 sm:gap-3 md:gap-4", aboutEditMode ? "xl:grid-cols-4" : "lg:grid-cols-2")}>
-                      <div className={cn("order-1 col-span-2 rounded-lg border border-border/70 bg-background/50 p-3 sm:p-3.5", aboutEditMode ? "xl:col-span-2" : "lg:col-span-1 lg:col-start-2 lg:order-2 lg:text-right")}>
-                        <UiLabel className={cn("text-[10px] uppercase tracking-wide text-muted-foreground sm:text-[11px]", !aboutEditMode && "lg:text-right")}>Date Range</UiLabel>
+                    <div
+                      className={cn(
+                        "grid grid-cols-2 gap-2 sm:gap-3 md:gap-4",
+                        aboutEditMode ? "xl:grid-cols-4" : "lg:grid-cols-2",
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "order-1 col-span-2 rounded-lg border border-border/70 bg-background/50 p-3 sm:p-3.5",
+                          aboutEditMode
+                            ? "xl:col-span-2"
+                            : "lg:col-span-1 lg:col-start-2 lg:order-2 lg:text-right",
+                        )}
+                      >
+                        <UiLabel
+                          className={cn(
+                            "text-[10px] uppercase tracking-wide text-muted-foreground sm:text-[11px]",
+                            !aboutEditMode && "lg:text-right",
+                          )}
+                        >
+                          Date Range
+                        </UiLabel>
                         {aboutEditMode ? (
                           <DateRangePicker
                             numberOfMonths={isDesktopWide ? 2 : 1}
@@ -1524,36 +1992,89 @@ export default function ProjectDetailsClient({
                             }}
                           />
                         ) : (
-                          <p className="mt-1 text-xs font-medium sm:text-sm">{toReadableDate(startDate)} to {toReadableDate(deadline)}</p>
+                          <p className="mt-1 text-xs font-medium sm:text-sm">
+                            {toReadableDate(startDate)} to{" "}
+                            {toReadableDate(deadline)}
+                          </p>
                         )}
                       </div>
 
-                      <div className={cn("order-5 col-span-2 rounded-lg border border-border/70 bg-background/50 p-3 sm:p-3.5", aboutEditMode ? "xl:order-5 xl:col-span-2" : "lg:col-span-1 lg:col-start-2 lg:order-5 lg:text-right")}>
-                        <UiLabel className={cn("text-[10px] uppercase tracking-wide text-muted-foreground sm:text-[11px]", !aboutEditMode && "lg:text-right")}>Labels</UiLabel>
+                      <div
+                        className={cn(
+                          "order-5 col-span-2 rounded-lg border border-border/70 bg-background/50 p-3 sm:p-3.5",
+                          aboutEditMode
+                            ? "xl:order-5 xl:col-span-2"
+                            : "lg:col-span-1 lg:col-start-2 lg:order-5 lg:text-right",
+                        )}
+                      >
+                        <UiLabel
+                          className={cn(
+                            "text-[10px] uppercase tracking-wide text-muted-foreground sm:text-[11px]",
+                            !aboutEditMode && "lg:text-right",
+                          )}
+                        >
+                          Labels
+                        </UiLabel>
                         {aboutEditMode ? (
                           <div className="mt-1.5">
-                            <LabelInput labels={labelItems} onChange={setLabelItems} />
+                            <LabelInput
+                              labels={labelItems}
+                              onChange={setLabelItems}
+                            />
                           </div>
                         ) : (
                           <div className="mt-2 flex flex-wrap gap-1.5 lg:justify-end">
-                            {labelItems.length > 0 ? labelItems.map((label) => (
-                              <Badge key={label} variant="outline" className="text-xs">{label}</Badge>
-                            )) : <span className="text-xs text-muted-foreground sm:text-sm">No labels</span>}
+                            {labelItems.length > 0 ? (
+                              labelItems.map((label) => (
+                                <Badge
+                                  key={label}
+                                  variant="outline"
+                                  className="text-xs"
+                                >
+                                  {label}
+                                </Badge>
+                              ))
+                            ) : (
+                              <span className="text-xs text-muted-foreground sm:text-sm">
+                                No labels
+                              </span>
+                            )}
                           </div>
                         )}
                       </div>
 
                       {aboutEditMode && (
                         <div className="order-2 col-span-2 rounded-lg border border-border/70 bg-background/50 p-3 sm:p-3.5 xl:order-3 xl:col-span-1">
-                          <UiLabel className="text-[10px] uppercase tracking-wide text-muted-foreground sm:text-[11px]">Status</UiLabel>
-                          <Select value={status} onValueChange={(value) => setStatus(value as ProjectResponse["status"])}>
+                          <UiLabel className="text-[10px] uppercase tracking-wide text-muted-foreground sm:text-[11px]">
+                            Status
+                          </UiLabel>
+                          <Select
+                            value={status}
+                            onValueChange={(value) =>
+                              setStatus(value as ProjectResponse["status"])
+                            }
+                          >
                             <SelectTrigger className="mt-1 h-8 text-xs sm:h-9 sm:text-sm">
                               <SelectValue placeholder="Select status" />
                             </SelectTrigger>
                             <SelectContent>
                               {PROJECT_STATUSES.map((item) => (
                                 <SelectItem key={item} value={item}>
-                                  {item.replace("-", " ").charAt(0).toUpperCase() + item.replace("-", " ").slice(1)}
+                                  <div className="flex items-center gap-2">
+                                    <div
+                                      className={cn(
+                                        "h-2 w-2 rounded-full",
+                                        STATUS_COLORS[item],
+                                      )}
+                                    />
+                                    <span>
+                                      {item
+                                        .replace("-", " ")
+                                        .charAt(0)
+                                        .toUpperCase() +
+                                        item.replace("-", " ").slice(1)}
+                                    </span>
+                                  </div>
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -1561,8 +2082,22 @@ export default function ProjectDetailsClient({
                         </div>
                       )}
 
-                      <div className={cn("order-3 rounded-lg border border-border/70 bg-background/50 p-3 sm:p-3.5", aboutEditMode ? "xl:order-4" : "lg:col-span-1 lg:col-start-2 lg:order-4 lg:text-right")}>
-                        <UiLabel className={cn("text-[10px] uppercase tracking-wide text-muted-foreground sm:text-[11px]", !aboutEditMode && "lg:text-right")}>Budget</UiLabel>
+                      <div
+                        className={cn(
+                          "order-3 rounded-lg border border-border/70 bg-background/50 p-3 sm:p-3.5",
+                          aboutEditMode
+                            ? "xl:order-4"
+                            : "lg:col-span-1 lg:col-start-2 lg:order-4 lg:text-right",
+                        )}
+                      >
+                        <UiLabel
+                          className={cn(
+                            "text-[10px] uppercase tracking-wide text-muted-foreground sm:text-[11px]",
+                            !aboutEditMode && "lg:text-right",
+                          )}
+                        >
+                          Budget
+                        </UiLabel>
                         {aboutEditMode ? (
                           <Input
                             type="number"
@@ -1573,38 +2108,80 @@ export default function ProjectDetailsClient({
                             placeholder="0.00"
                           />
                         ) : (
-                          <p className="mt-1 text-xs font-medium sm:text-sm">{budget ? `$${Number(budget).toLocaleString()}` : "-"}</p>
+                          <p className="mt-1 text-xs font-medium sm:text-sm">
+                            {budget
+                              ? `$${Number(budget).toLocaleString()}`
+                              : "-"}
+                          </p>
                         )}
                       </div>
 
-                      <div className={cn("order-4 rounded-lg border border-border/70 bg-background/50 p-3 sm:p-3.5", aboutEditMode ? "xl:order-2 xl:col-span-2" : "lg:col-span-1 lg:col-start-2 lg:order-3 lg:text-right")}>
-                        <UiLabel className={cn("text-[10px] uppercase tracking-wide text-muted-foreground sm:text-[11px]", !aboutEditMode && "lg:text-right")}>Client</UiLabel>
+                      <div
+                        className={cn(
+                          "order-4 rounded-lg border border-border/70 bg-background/50 p-3 sm:p-3.5",
+                          aboutEditMode
+                            ? "xl:order-2 xl:col-span-2"
+                            : "lg:col-span-1 lg:col-start-2 lg:order-3 lg:text-right",
+                        )}
+                      >
+                        <UiLabel
+                          className={cn(
+                            "text-[10px] uppercase tracking-wide text-muted-foreground sm:text-[11px]",
+                            !aboutEditMode && "lg:text-right",
+                          )}
+                        >
+                          Client
+                        </UiLabel>
                         {aboutEditMode ? (
                           <div className="mt-1">
-                            <ClientPicker value={clientName} onChange={setClientName} clients={clients} size="compact" />
+                            <ClientPicker
+                              value={clientName}
+                              onChange={setClientName}
+                              clients={clients}
+                              size="compact"
+                            />
                           </div>
                         ) : (
-                          <p className="mt-1 text-xs font-medium sm:text-sm">{getClientDisplayName(clientName)}</p>
+                          <p className="mt-1 text-xs font-medium sm:text-sm">
+                            {getClientDisplayName(clientName)}
+                          </p>
                         )}
                       </div>
 
-                      <div className={cn("order-6 col-span-2 rounded-lg border border-border/70 bg-background/50 p-3 sm:p-3.5", aboutEditMode ? "xl:col-span-4" : "lg:col-span-1 lg:col-start-1 lg:row-span-4 lg:order-1")}>
-                        <UiLabel className="text-[10px] uppercase tracking-wide text-muted-foreground sm:text-[11px]">Description</UiLabel>
+                      <div
+                        className={cn(
+                          "order-6 col-span-2 rounded-lg border border-border/70 bg-background/50 p-3 sm:p-3.5",
+                          aboutEditMode
+                            ? "xl:col-span-4"
+                            : "lg:col-span-1 lg:col-start-1 lg:row-span-4 lg:order-1",
+                        )}
+                      >
+                        <UiLabel className="text-[10px] uppercase tracking-wide text-muted-foreground sm:text-[11px]">
+                          Description
+                        </UiLabel>
                         {aboutEditMode ? (
                           <div className="mt-1">
-                            <MarkdownEditor value={description} onChange={setDescription} />
+                            <MarkdownEditor
+                              value={description}
+                              onChange={setDescription}
+                            />
                           </div>
                         ) : (
                           <>
                             <div
                               className={cn(
                                 "prose prose-sm mt-1 max-w-none text-xs text-muted-foreground sm:text-sm",
-                                !descriptionExpanded && "max-h-24 overflow-hidden sm:max-h-40 lg:max-h-[34rem]",
+                                !descriptionExpanded &&
+                                  "max-h-24 overflow-hidden sm:max-h-40 lg:max-h-[34rem]",
                               )}
                               dangerouslySetInnerHTML={{
                                 __html: description
-                                  ? renderMarkdownHtml(descriptionExpanded ? description : descriptionPreview.preview)
-                                  : "<p class=\"text-muted-foreground\">No description provided.</p>",
+                                  ? renderMarkdownHtml(
+                                      descriptionExpanded
+                                        ? description
+                                        : descriptionPreview.preview,
+                                    )
+                                  : '<p class="text-muted-foreground">No description provided.</p>',
                               }}
                             />
                             {description && descriptionPreview.truncated && (
@@ -1613,9 +2190,13 @@ export default function ProjectDetailsClient({
                                 variant="ghost"
                                 size="sm"
                                 className="mt-2 h-8 px-2 text-xs"
-                                onClick={() => setDescriptionExpanded((value) => !value)}
+                                onClick={() =>
+                                  setDescriptionExpanded((value) => !value)
+                                }
                               >
-                                {descriptionExpanded ? "Show less" : "Show more"}
+                                {descriptionExpanded
+                                  ? "Show less"
+                                  : "Show more"}
                               </Button>
                             )}
                           </>
@@ -1661,7 +2242,7 @@ export default function ProjectDetailsClient({
                   <Briefcase className="h-5 w-5 text-primary" />
                   Project Information
                 </div>
-                
+
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                   <FormField label="Project Name" required error={nameError}>
                     <input
@@ -1684,13 +2265,16 @@ export default function ProjectDetailsClient({
                   <FormField label="Status">
                     <select
                       value={status}
-                      onChange={(e) => setStatus(e.target.value as ProjectResponse["status"])}
+                      onChange={(e) =>
+                        setStatus(e.target.value as ProjectResponse["status"])
+                      }
                       disabled={!editEnabled}
                       className="h-11 w-full rounded-lg border border-input bg-background px-4 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                     >
                       {PROJECT_STATUSES.map((item) => (
                         <option key={item} value={item}>
-                          {item.replace("-", " ").charAt(0).toUpperCase() + item.replace("-", " ").slice(1)}
+                          {item.replace("-", " ").charAt(0).toUpperCase() +
+                            item.replace("-", " ").slice(1)}
                         </option>
                       ))}
                     </select>
@@ -1739,7 +2323,9 @@ export default function ProjectDetailsClient({
 
                   <FormField label="Budget">
                     <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
+                        $
+                      </span>
                       <input
                         type="number"
                         value={budget}
@@ -1817,7 +2403,11 @@ export default function ProjectDetailsClient({
                           key={member.id}
                           type="button"
                           disabled={!editEnabled}
-                          onClick={() => setMemberIds((prev) => prev.filter((id) => id !== member.id))}
+                          onClick={() =>
+                            setMemberIds((prev) =>
+                              prev.filter((id) => id !== member.id),
+                            )
+                          }
                           className="group flex items-center gap-2 rounded-full border border-border/60 bg-background/60 pl-1.5 pr-3 py-1 text-sm transition-all hover:border-rose-500/50 hover:bg-rose-500/10"
                         >
                           <MemberAvatar
@@ -1827,7 +2417,9 @@ export default function ProjectDetailsClient({
                             sizeClass="h-6 w-6"
                             textClass="text-[9px]"
                           />
-                          <span className="text-xs font-medium">{member.name}</span>
+                          <span className="text-xs font-medium">
+                            {member.name}
+                          </span>
                           <X className="h-3.5 w-3.5 text-muted-foreground group-hover:text-rose-500 transition-colors" />
                         </button>
                       ))}
@@ -1889,7 +2481,11 @@ export default function ProjectDetailsClient({
                           />
                           <select
                             value={newTaskPriority}
-                            onChange={(e) => setNewTaskPriority(e.target.value as NewProjectTask["priority"])}
+                            onChange={(e) =>
+                              setNewTaskPriority(
+                                e.target.value as NewProjectTask["priority"],
+                              )
+                            }
                             className="h-10 rounded-lg border border-input bg-background px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                           >
                             {PRIORITIES.map((p) => (
@@ -1907,7 +2503,9 @@ export default function ProjectDetailsClient({
                           </div>
                           <select
                             value={newTaskAssigneeId || ""}
-                            onChange={(e) => setNewTaskAssigneeId(e.target.value || null)}
+                            onChange={(e) =>
+                              setNewTaskAssigneeId(e.target.value || null)
+                            }
                             className="h-10 rounded-lg border border-input bg-background px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                           >
                             <option value="">Assignee (optional)</option>
@@ -1934,7 +2532,8 @@ export default function ProjectDetailsClient({
                       {newTasks.length > 0 && (
                         <div className="space-y-2">
                           <p className="text-sm font-medium">
-                            {newTasks.length} task{newTasks.length !== 1 ? "s" : ""} to create
+                            {newTasks.length} task
+                            {newTasks.length !== 1 ? "s" : ""} to create
                           </p>
                           {newTasks.map((task, index) => (
                             <div
@@ -1942,9 +2541,19 @@ export default function ProjectDetailsClient({
                               className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background px-4 py-3"
                             >
                               <div className="flex items-center gap-3 min-w-0">
-                                <div className={cn("h-2.5 w-2.5 rounded-full shrink-0", priorityColors[task.priority])} />
-                                <span className="truncate text-sm font-medium">{task.title}</span>
-                                <Badge variant="outline" className="shrink-0 text-xs capitalize">
+                                <div
+                                  className={cn(
+                                    "h-2.5 w-2.5 rounded-full shrink-0",
+                                    priorityColors[task.priority],
+                                  )}
+                                />
+                                <span className="truncate text-sm font-medium">
+                                  {task.title}
+                                </span>
+                                <Badge
+                                  variant="outline"
+                                  className="shrink-0 text-xs capitalize"
+                                >
                                   {task.priority}
                                 </Badge>
                                 {task.due_date && (
@@ -1954,7 +2563,9 @@ export default function ProjectDetailsClient({
                                 )}
                                 {task.assignee_id && (
                                   <span className="shrink-0 text-xs text-muted-foreground">
-                                    {members.find(m => m.id === task.assignee_id)?.name || "Unknown"}
+                                    {members.find(
+                                      (m) => m.id === task.assignee_id,
+                                    )?.name || "Unknown"}
                                   </span>
                                 )}
                               </div>
@@ -1984,7 +2595,8 @@ export default function ProjectDetailsClient({
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      You can add tasks now or create them later from the project page.
+                      You can add tasks now or create them later from the
+                      project page.
                     </p>
                   )}
                 </div>
@@ -2004,7 +2616,9 @@ export default function ProjectDetailsClient({
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => router.push(`/tasks?projectId=${projectId}`)}
+                          onClick={() =>
+                            router.push(`/tasks?projectId=${projectId}`)
+                          }
                         >
                           Open Tasks Board
                         </Button>
@@ -2027,7 +2641,9 @@ export default function ProjectDetailsClient({
                   {tasksExpanded && (
                     <div className="mt-4 space-y-2">
                       {projectTasks.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">No tasks found for this project.</p>
+                        <p className="text-xs text-muted-foreground">
+                          No tasks found for this project.
+                        </p>
                       ) : (
                         projectTasks.map((task) => (
                           <div
@@ -2035,12 +2651,17 @@ export default function ProjectDetailsClient({
                             className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 bg-background px-3 py-2.5 text-xs"
                           >
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium">{task.title}</p>
+                              <p className="truncate text-sm font-medium">
+                                {task.title}
+                              </p>
                               <p className="text-muted-foreground">
-                                {task.priority.toUpperCase()} {task.due_date ? `• Due ${task.due_date}` : ""}
+                                {task.priority.toUpperCase()}{" "}
+                                {task.due_date ? `• Due ${task.due_date}` : ""}
                               </p>
                             </div>
-                            <span className="capitalize text-muted-foreground shrink-0">{task.status}</span>
+                            <span className="capitalize text-muted-foreground shrink-0">
+                              {task.status}
+                            </span>
                           </div>
                         ))
                       )}
@@ -2051,8 +2672,17 @@ export default function ProjectDetailsClient({
 
               {canEdit && editEnabled && (
                 <div className="flex justify-end pt-4">
-                  <Button onClick={onSave} disabled={saving} size="lg" className="gap-2 px-8">
-                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  <Button
+                    onClick={onSave}
+                    disabled={saving}
+                    size="lg"
+                    className="gap-2 px-8"
+                  >
+                    {saving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
                     {mode === "create" ? "Create Project" : "Save Changes"}
                   </Button>
                 </div>
