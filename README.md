@@ -1,8 +1,77 @@
-# ProjectHub 
+# ProjectHub
 
 ProjectHub is a small SaaS-style project dashboard built with Next.js and Supabase.
 
-ProjectHub keeps project work clear and practical: who owns what, what’s due, what’s blocked, and what’s moving forward.
+ProjectHub keeps project work clear and practical: who owns what, what's due, what's blocked, and what's moving forward.
+
+## Visual Showcase
+
+Here's what ProjectHub looks like in action:
+
+### Dashboard Customization
+
+Tailor your workspace to match how you work best. Rearrange widgets, show or hide sections, and create your perfect command center.
+
+![Dashboard Customization](screenshots/dashboard_customization.png)
+
+### Mobile Experience
+
+Stay connected to your projects on the go. The responsive design ensures full functionality across all your devices.
+
+![Mobile View](screenshots/mobile.png)
+
+<details>
+<summary><b>More Screenshots</b></summary>
+
+#### Dashboard Overview
+
+Your centralized hub for tracking everything that matters. See active projects, upcoming deadlines, and team activity at a glance.
+
+![Dashboard](screenshots/dashboard.png)
+
+#### Projects Preview
+
+Get a quick snapshot of project health with timeline views and progress indicators that keep you informed without overwhelming detail.
+
+![Projects Preview](screenshots/projects_preview.png)
+
+#### Project Activity
+
+Track every update, comment, and milestone in one place. Stay informed about what's happening across your projects in real-time.
+
+![Project Activity](screenshots/projects_activity.png)
+
+#### Project Cards
+
+Browse projects visually with rich card layouts that surface key information like status, deadlines, and team assignments instantly.
+
+![Project Cards](screenshots/projects_cards.png)
+
+#### Tasks Workspace
+
+Manage work your way with flexible views—switch between kanban boards, detailed lists, and calendar layouts to match your workflow.
+
+![Tasks Views](screenshots/tasks_views.png)
+
+#### Team Management
+
+Keep your team organized with role-based access control. Manage permissions and see who's working on what with detailed member profiles.
+
+![Team View](screenshots/team_view.png)
+
+#### Reports & Analytics
+
+Make data-driven decisions with insights into project progress, team productivity, and workload distribution across your organization.
+
+![Reports](screenshots/reports.png)
+
+#### Settings
+
+Personalize your experience with theme options, profile customization, and account preferences—all in one convenient location.
+
+![Settings](screenshots/settings.png)
+
+</details>
 
 ## Stack
 
