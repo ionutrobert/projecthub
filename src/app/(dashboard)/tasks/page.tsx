@@ -1458,6 +1458,7 @@ useEffect(() => {
                               <MemberAvatar
                                 name={member.name}
                                 email={member.email}
+                                userId={member.user_id}
                                 avatarUrl={member.avatar_url}
                                 ring={false}
                                 sizeClass="h-5 w-5"
@@ -1499,6 +1500,7 @@ useEffect(() => {
                             <MemberAvatar
                               name={member.name}
                               email={member.email}
+                              userId={member.user_id}
                               avatarUrl={member.avatar_url}
                               ring={false}
                               sizeClass="h-6 w-6"
@@ -3105,6 +3107,7 @@ useEffect(() => {
                               <MemberAvatar
                                 name={member.name}
                                 email={member.email}
+                                userId={member.user_id}
                                 avatarUrl={member.avatar_url}
                                 ring={false}
                                 sizeClass="h-5 w-5"
@@ -3146,6 +3149,7 @@ useEffect(() => {
                             <MemberAvatar
                               name={member.name}
                               email={member.email}
+                              userId={member.user_id}
                               avatarUrl={member.avatar_url}
                               ring={false}
                               sizeClass="h-6 w-6"

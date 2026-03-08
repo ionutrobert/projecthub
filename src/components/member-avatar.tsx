@@ -4,7 +4,8 @@ import { useMemo, useState } from "react"
 import Image from "next/image"
 
 import { cn } from "@/lib/utils"
-import { getMemberAvatarCandidates, getNameInitials } from "@/lib/avatar"
+import { getNameInitials } from "@/lib/avatar"
+import { getAvatarCandidates } from "@/lib/avatar-service"
 
 type MemberAvatarProps = {
   name?: string | null
@@ -29,17 +30,17 @@ export default function MemberAvatar({
 }: MemberAvatarProps) {
   const candidates = useMemo(
     () => {
-      const hasMemberEmail = Boolean((email || "").trim())
+      // Use the new avatar service for consistent processing
+      const avatarData = {
+        id: userId || "unknown",
+        name: name || null,
+        email: email || null,
+        avatar_url: avatarUrl || null,
+        user_id: userId || null,
+        type: "member" as const
+      };
 
-      return getMemberAvatarCandidates(
-        {
-          name,
-          email,
-          user_id: userId,
-          avatar_url: avatarUrl,
-        },
-        { includeEmailAvatar: hasMemberEmail }
-      )
+      return getAvatarCandidates(avatarData);
     },
     [name, email, userId, avatarUrl]
   )

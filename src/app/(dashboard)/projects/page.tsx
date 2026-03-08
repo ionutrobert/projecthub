@@ -95,6 +95,7 @@ interface Member {
   name: string;
   email: string;
   role: string;
+  avatar_url?: string | null;
 }
 
 interface Client {
@@ -399,7 +400,10 @@ export default function ProjectsPage() {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), ms);
     try {
-      const response = await fetch(url, { signal: controller.signal });
+      const response = await fetch(url, { 
+        signal: controller.signal,
+        cache: "no-store"
+      });
       const data = await response.json();
       return { ok: response.ok, data };
     } finally {
@@ -1443,6 +1447,7 @@ export default function ProjectsPage() {
                                       name={member.name}
                                       email={member.email}
                                       userId={member.user_id}
+                                      avatarUrl={member.avatar_url || null}
                                       sizeClass="h-4 w-4 sm:h-5 sm:w-5"
                                       textClass="text-[9px]"
                                     />
@@ -1659,6 +1664,7 @@ export default function ProjectsPage() {
                                                   name={member.name}
                                                   email={member.email}
                                                   userId={member.user_id}
+                                                  avatarUrl={member.avatar_url || null}
                                                   sizeClass="h-4 w-4"
                                                   textClass="text-[8px]"
                                                 />
@@ -1728,6 +1734,7 @@ export default function ProjectsPage() {
                                               name={member.name}
                                               email={member.email}
                                               userId={member.user_id}
+                                              avatarUrl={member.avatar_url || null}
                                               sizeClass="h-6 w-6"
                                               textClass="text-[10px]"
                                             />
@@ -1899,6 +1906,7 @@ export default function ProjectsPage() {
                                       name={member.name}
                                       email={member.email}
                                       userId={member.user_id}
+                                      avatarUrl={member.avatar_url || null}
                                       sizeClass="h-6 w-6"
                                       textClass="text-[10px]"
                                     />

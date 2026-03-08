@@ -100,7 +100,7 @@ export async function GET(request: Request) {
       role: member.role,
       system_role: systemRole,
       user_id: member.user_id,
-      avatar_url: joinedAvatar || selfAvatar,
+      avatar_url: selfAvatar || joinedAvatar,
     };
   });
 

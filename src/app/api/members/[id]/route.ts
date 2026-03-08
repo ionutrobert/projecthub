@@ -97,7 +97,7 @@ export async function GET(
     role: member.role, // Job Title
     system_role: systemRole,
     user_id: member.user_id,
-    avatar_url: joinedAvatar || selfAvatar,
+    avatar_url: selfAvatar || joinedAvatar,
     created_at: member.created_at,
   });
 }
@@ -225,6 +225,7 @@ export async function PUT(
   revalidateTag("members", "max");
   revalidateTag("team", "max");
   revalidateTag("dashboard", "max");
+  revalidateTag("projects", "max");
 
   return NextResponse.json(data);
 }

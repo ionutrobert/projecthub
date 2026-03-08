@@ -73,14 +73,14 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 404 });
   }
 
-  // Normalize member names to use full_name from profile if available
+  // Normalize member names and avatars to use data from profile if available
   interface MemberWithProfile {
     id: string;
     user_id?: string | null;
     name: string;
     email?: string | null;
     role?: string | null;
-    profiles?: Array<{ full_name?: string }> | { full_name?: string } | null;
+    profiles?: Array<{ full_name?: string; avatar_url?: string }> | { full_name?: string; avatar_url?: string } | null;
   }
 
   interface ProjectMember {
@@ -93,17 +93,26 @@ export async function GET(
         const member = pm.members;
         if (!member) return pm;
 
-        const profileRecord = Array.isArray(member.profiles)
-          ? member.profiles[0]
-          : (member.profiles as { full_name?: string } | null);
-
-        const displayName = profileRecord?.full_name || member.name;
+        // member.profiles can be array (one-to-many) or object (one-to-one)
+        let displayName = member.name;
+        let displayAvatar = null;
+        
+        if (Array.isArray(member.profiles) && member.profiles.length > 0) {
+          const profile = member.profiles[0] as { full_name?: string; avatar_url?: string };
+          displayName = profile.full_name || member.name;
+          displayAvatar = profile.avatar_url || null;
+        } else if (member.profiles && typeof member.profiles === 'object') {
+          const profile = member.profiles as { full_name?: string; avatar_url?: string };
+          displayName = profile.full_name || member.name;
+          displayAvatar = profile.avatar_url || null;
+        }
 
         return {
           ...pm,
           members: {
             ...member,
             name: displayName,
+            avatar_url: displayAvatar,
           },
         };
       },
@@ -255,7 +264,7 @@ export async function PUT(
     );
   }
 
-  // Normalize member names
+  // Normalize member names and avatars
   if (updatedProject.project_members) {
     updatedProject.project_members = (
       updatedProject.project_members as any[]
@@ -265,15 +274,17 @@ export async function PUT(
 
       const profileRecord = Array.isArray(member.profiles)
         ? member.profiles[0]
-        : (member.profiles as { full_name?: string } | null);
+        : (member.profiles as { full_name?: string, avatar_url?: string } | null);
 
       const displayName = profileRecord?.full_name || member.name;
+      const displayAvatar = profileRecord?.avatar_url || null;
 
       return {
         ...pm,
         members: {
           ...member,
           name: displayName,
+          avatar_url: displayAvatar,
         },
       };
     });

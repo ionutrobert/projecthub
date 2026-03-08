@@ -177,25 +177,33 @@ export async function GET(request: NextRequest) {
      const projectMembers = project.project_members as ProjectMember[] | undefined;
      if (!projectMembers) return project;
 
-     const normalizedMembers = projectMembers.map((pm) => {
-       const member = pm.members;
-       if (!member) return pm;
+      const normalizedMembers = projectMembers.map((pm) => {
+        const member = pm.members;
+        if (!member) return pm;
 
-       // member.profiles can be array (one-to-many) or object (one-to-one)
-       const profileRecord = Array.isArray(member.profiles)
-         ? member.profiles[0]
-         : (member.profiles as { full_name?: string } | null);
+        // member.profiles can be array (one-to-many) or object (one-to-one)
+        let displayName = member.name;
+        let displayAvatar = null;
+        
+        if (Array.isArray(member.profiles) && member.profiles.length > 0) {
+          const profile = member.profiles[0] as { full_name?: string; avatar_url?: string };
+          displayName = profile.full_name || member.name;
+          displayAvatar = profile.avatar_url || null;
+        } else if (member.profiles && typeof member.profiles === 'object') {
+          const profile = member.profiles as { full_name?: string; avatar_url?: string };
+          displayName = profile.full_name || member.name;
+          displayAvatar = profile.avatar_url || null;
+        }
 
-       const displayName = profileRecord?.full_name || member.name;
-
-       return {
-         ...pm,
-         members: {
-           ...member,
-           name: displayName,
-         },
-       };
-     });
+        return {
+          ...pm,
+          members: {
+            ...member,
+            name: displayName,
+            avatar_url: displayAvatar,
+          },
+        };
+      });
 
      return {
        ...project,

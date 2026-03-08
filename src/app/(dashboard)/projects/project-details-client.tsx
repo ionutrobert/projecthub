@@ -68,6 +68,7 @@ type Member = {
   id: string;
   name: string;
   email: string | null;
+  user_id?: string | null;
   avatar_url?: string | null;
 };
 
@@ -722,6 +723,7 @@ function MemberPicker({
                     key={member.id}
                     name={member.name}
                     email={member.email}
+                    userId={member.user_id}
                     avatarUrl={member.avatar_url}
                     ring={false}
                     sizeClass="h-6 w-6"
@@ -773,6 +775,7 @@ function MemberPicker({
                   <MemberAvatar
                     name={member.name}
                     email={member.email}
+                    userId={member.user_id}
                     avatarUrl={member.avatar_url}
                     sizeClass="h-8 w-8"
                     textClass="text-[10px]"
@@ -1789,6 +1792,7 @@ export default function ProjectDetailsClient({
                               <MemberAvatar
                                 name={member.name}
                                 email={member.email}
+                                userId={member.user_id}
                                 avatarUrl={member.avatar_url}
                                 sizeClass="h-6 w-6"
                                 textClass="text-[9px]"
@@ -2413,6 +2417,7 @@ export default function ProjectDetailsClient({
                           <MemberAvatar
                             name={member.name}
                             email={member.email}
+                            userId={member.user_id}
                             avatarUrl={member.avatar_url}
                             sizeClass="h-6 w-6"
                             textClass="text-[9px]"

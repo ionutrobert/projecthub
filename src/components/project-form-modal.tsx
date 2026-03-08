@@ -651,6 +651,7 @@ const handleAddTask = () => {
                                     key={member.id}
                                     name={member.name}
                                     email={member.email}
+                                    userId={member.user_id}
                                     avatarUrl={member.avatar_url}
                                     ring={false}
                                     sizeClass="h-6 w-6"
@@ -694,13 +695,14 @@ const handleAddTask = () => {
                                }}
                              >
                                <Check className={cn("mr-2 h-4 w-4", memberIds.includes(member.id) ? "opacity-100" : "opacity-0")} />
-                               <MemberAvatar
-                                 name={member.name}
-                                 email={member.email}
-                                 avatarUrl={member.avatar_url}
-                                 sizeClass="h-8 w-8"
-                                 textClass="text-[10px]"
-                               />
+                              <MemberAvatar
+                                name={member.name}
+                                email={member.email}
+                                userId={member.user_id}
+                                avatarUrl={member.avatar_url}
+                                sizeClass="h-8 w-8"
+                                textClass="text-[10px]"
+                              />
                                <div className="ml-2 flex flex-col">
                                  <span className="text-sm font-medium">{member.name}</span>
                                  {member.email && <span className="text-xs text-muted-foreground">{member.email}</span>}
@@ -892,6 +894,7 @@ const handleAddTask = () => {
                                         <MemberAvatar
                                           name={member.name}
                                           email={member.email}
+                                          userId={member.user_id}
                                           avatarUrl={member.avatar_url}
                                           ring={false}
                                           sizeClass="h-5 w-5"
@@ -936,6 +939,7 @@ const handleAddTask = () => {
                                       <MemberAvatar
                                         name={member.name}
                                         email={member.email}
+                                        userId={member.user_id}
                                         avatarUrl={member.avatar_url}
                                         ring={false}
                                         sizeClass="h-6 w-6"
@@ -993,6 +997,7 @@ const handleAddTask = () => {
                                   <MemberAvatar
                                     name={assignedMember.name}
                                     email={assignedMember.email}
+                                    userId={assignedMember.user_id}
                                     avatarUrl={assignedMember.avatar_url}
                                     ring={false}
                                     sizeClass="h-4 w-4"

@@ -86,6 +86,8 @@ export async function PUT(request: NextRequest) {
   // Invalidate caches to reflect changes across app
   revalidateTag("dashboard", "max")
   revalidateTag("team", "max")
+  revalidateTag("projects", "max")
+  revalidateTag("members", "max")
 
   return NextResponse.json({ success: true })
 }
