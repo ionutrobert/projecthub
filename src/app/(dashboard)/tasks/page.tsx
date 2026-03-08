@@ -88,6 +88,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { DatePicker } from "@/components/ui/date-picker";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import MemberAvatar from "@/components/member-avatar";
 import { cn } from "@/lib/utils";
 
 type Task = {
@@ -128,6 +131,8 @@ type Project = {
 type Member = {
   id: string;
   name: string;
+  email?: string | null;
+  avatar_url?: string | null;
   user_id?: string | null;
 };
 
@@ -497,7 +502,11 @@ export default function TasksPage() {
       : [],
   );
   const [assigneeFilterOpen, setAssigneeFilterOpen] = useState(false);
-  const [dueFilter, setDueFilter] = useState<string[]>([]);
+  const [dueFilter, setDueFilter] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    const stored = window.sessionStorage.getItem("projecthub-tasks-due-filter");
+    return stored ? [stored] : [];
+  });
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [myTasksOnly, setMyTasksOnly] = useState(() => {
     if (typeof window === "undefined") return true;
@@ -603,18 +612,26 @@ export default function TasksPage() {
     );
   }, [myTasksOnly]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.sessionStorage.setItem(
-      "projecthub-tasks-hide-completed",
-      String(hideCompletedTasks),
-    );
-  }, [hideCompletedTasks]);
+useEffect(() => {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(
+    "projecthub-tasks-hide-completed",
+    String(hideCompletedTasks),
+  );
+}, [hideCompletedTasks]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    sessionStorage.setItem("projecthub-tasks-view-mode", viewMode);
-  }, [viewMode]);
+useEffect(() => {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(
+    "projecthub-tasks-due-filter",
+    dueFilter[0] || "",
+  );
+}, [dueFilter]);
+
+useEffect(() => {
+  if (typeof window === "undefined") return;
+  sessionStorage.setItem("projecthub-tasks-view-mode", viewMode);
+}, [viewMode]);
 
   useEffect(() => {
     if (userLoading) return;
@@ -1419,40 +1436,99 @@ export default function TasksPage() {
                         <option value="urgent">Urgent</option>
                       </select>
                     </div>
-                    <div className="grid gap-2">
-                      <label
-                        htmlFor="task-assignee"
-                        className="text-sm font-medium"
-                      >
-                        Assignee
-                      </label>
-                      <select
-                        id="task-assignee"
-                        value={newAssignee}
-                        onChange={(e) => setNewAssignee(e.target.value)}
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      >
-                        <option value="">Unassigned</option>
+            <div className="grid gap-2">
+              <label
+                htmlFor="task-assignee"
+                className="text-sm font-medium"
+              >
+                Assignee
+              </label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-between h-10"
+                  >
+                    {newAssignee ? (
+                      <div className="flex items-center gap-2">
+                        {(() => {
+                          const member = members.find(m => m.id === newAssignee);
+                          return member ? (
+                            <>
+                              <MemberAvatar
+                                name={member.name}
+                                email={member.email}
+                                avatarUrl={member.avatar_url}
+                                ring={false}
+                                sizeClass="h-5 w-5"
+                                textClass="text-[8px]"
+                              />
+                              <span>{member.name}</span>
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground">Select assignee</span>
+                          );
+                        })()}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">Select assignee</span>
+                    )}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search members..." className="no-global-focus-ring h-11 border-0 outline-none ring-0 pr-8 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none" />
+                    <CommandList className="max-h-[200px]">
+                      <CommandEmpty>No members found.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value=""
+                          onSelect={() => setNewAssignee("")}
+                        >
+                          <Check className={cn("mr-2 h-4 w-4", !newAssignee ? "opacity-100" : "opacity-0")} />
+                          <span>Unassigned</span>
+                        </CommandItem>
                         {members.map((member) => (
-                          <option key={member.id} value={member.id}>
-                            {member.name}
-                          </option>
+                          <CommandItem
+                            key={member.id}
+                            value={`${member.name} ${member.email || ""}`}
+                            onSelect={() => setNewAssignee(member.id)}
+                          >
+                            <Check className={cn("mr-2 h-4 w-4", newAssignee === member.id ? "opacity-100" : "opacity-0")} />
+                            <MemberAvatar
+                              name={member.name}
+                              email={member.email}
+                              avatarUrl={member.avatar_url}
+                              ring={false}
+                              sizeClass="h-6 w-6"
+                              textClass="text-[10px]"
+                            />
+                            <div className="ml-2 flex flex-col">
+                              <span className="text-sm">{member.name}</span>
+                              {member.email && (
+                                <span className="text-xs text-muted-foreground">{member.email}</span>
+                              )}
+                            </div>
+                          </CommandItem>
                         ))}
-                      </select>
-                    </div>
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
                   </div>
-                  <div className="grid gap-2">
-                    <label htmlFor="task-due" className="text-sm font-medium">
-                      Due Date
-                    </label>
-                    <input
-                      id="task-due"
-                      type="date"
-                      value={newDueDate}
-                      onChange={(e) => setNewDueDate(e.target.value)}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    />
-                  </div>
+              <div className="grid gap-2">
+                <label htmlFor="task-due" className="text-sm font-medium">
+                  Due Date
+                </label>
+                <DatePicker
+                  date={newDueDate ? new Date(newDueDate) : undefined}
+                  onDateChange={(date) => setNewDueDate(date ? date.toISOString().split('T')[0] : "")}
+                  placeholder="Select due date"
+                />
+              </div>
                 </div>
                 <DialogFooter>
                   <Button
@@ -1766,16 +1842,17 @@ export default function TasksPage() {
             </PopoverContent>
           </Popover>
 
-          <select
-            value={dueFilter[0] || "all"}
-            onChange={(e) =>
-              setDueFilter(e.target.value === "all" ? [] : [e.target.value])
-            }
-            className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm lg:w-auto"
-          >
-            <option value="due_7d">Due in 7 days</option>
-            <option value="overdue">Overdue</option>
-          </select>
+            <select
+              value={dueFilter[0] || "all"}
+              onChange={(e) =>
+                setDueFilter(e.target.value === "all" ? [] : [e.target.value])
+              }
+              className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm lg:w-auto"
+            >
+              <option value="all">Filter by due date</option>
+              <option value="due_7d">Due in 7 days</option>
+              <option value="overdue">Overdue</option>
+            </select>
 
           <label
             className={cn(
@@ -3011,31 +3088,92 @@ export default function TasksPage() {
                         <option value="urgent">Urgent</option>
                       </select>
                     </div>
-                    <div className="grid gap-2">
-                      <label className="text-sm font-medium">Assignee</label>
-                      <select
-                        value={editAssignee}
-                        onChange={(e) => setEditAssignee(e.target.value)}
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      >
-                        <option value="">Unassigned</option>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Assignee</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-between h-10"
+                  >
+                    {editAssignee ? (
+                      <div className="flex items-center gap-2">
+                        {(() => {
+                          const member = members.find(m => m.id === editAssignee);
+                          return member ? (
+                            <>
+                              <MemberAvatar
+                                name={member.name}
+                                email={member.email}
+                                avatarUrl={member.avatar_url}
+                                ring={false}
+                                sizeClass="h-5 w-5"
+                                textClass="text-[8px]"
+                              />
+                              <span>{member.name}</span>
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground">Select assignee</span>
+                          );
+                        })()}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">Select assignee</span>
+                    )}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search members..." className="no-global-focus-ring h-11 border-0 outline-none ring-0 pr-8 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none" />
+                    <CommandList className="max-h-[200px]">
+                      <CommandEmpty>No members found.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value=""
+                          onSelect={() => setEditAssignee("")}
+                        >
+                          <Check className={cn("mr-2 h-4 w-4", !editAssignee ? "opacity-100" : "opacity-0")} />
+                          <span>Unassigned</span>
+                        </CommandItem>
                         {members.map((member) => (
-                          <option key={member.id} value={member.id}>
-                            {member.name}
-                          </option>
+                          <CommandItem
+                            key={member.id}
+                            value={`${member.name} ${member.email || ""}`}
+                            onSelect={() => setEditAssignee(member.id)}
+                          >
+                            <Check className={cn("mr-2 h-4 w-4", editAssignee === member.id ? "opacity-100" : "opacity-0")} />
+                            <MemberAvatar
+                              name={member.name}
+                              email={member.email}
+                              avatarUrl={member.avatar_url}
+                              ring={false}
+                              sizeClass="h-6 w-6"
+                              textClass="text-[10px]"
+                            />
+                            <div className="ml-2 flex flex-col">
+                              <span className="text-sm">{member.name}</span>
+                              {member.email && (
+                                <span className="text-xs text-muted-foreground">{member.email}</span>
+                              )}
+                            </div>
+                          </CommandItem>
                         ))}
-                      </select>
-                    </div>
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
                   </div>
-                  <div className="grid gap-2">
-                    <label className="text-sm font-medium">Due Date</label>
-                    <input
-                      type="date"
-                      value={editDueDate}
-                      onChange={(e) => setEditDueDate(e.target.value)}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    />
-                  </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Due Date</label>
+                <DatePicker
+                  date={editDueDate ? new Date(editDueDate) : undefined}
+                  onDateChange={(date) => setEditDueDate(date ? date.toISOString().split('T')[0] : "")}
+                  placeholder="Select due date"
+                />
+              </div>
                   <div className="mt-4 flex w-full items-center justify-between">
                     <Button
                       variant="outline"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { type DateRange } from "react-day-picker";
@@ -39,6 +39,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Dialog,
   DialogContent,
@@ -271,43 +272,177 @@ export default function ProjectFormModal({
   const [projectColor, setProjectColor] = useState("#8B5CF6");
   const [projectIcon, setProjectIcon] = useState<ProjectIcon>("FolderKanban");
 
-   // Tasks
-   const [tasksOpen, setTasksOpen] = useState(false);
-   const [newTasks, setNewTasks] = useState<
-     { title: string; priority: "low" | "medium" | "high" | "urgent"; due_date: string | null }[]
-   >([]);
-   const [newTaskTitle, setNewTaskTitle] = useState("");
-   const [newTaskPriority, setNewTaskPriority] = useState<"low" | "medium" | "high" | "urgent">("medium");
-   const [newTaskDueDate, setNewTaskDueDate] = useState<Date | undefined>(undefined);
+  // Tasks
+  const [tasksOpen, setTasksOpen] = useState(false);
+  const [newTasks, setNewTasks] = useState<
+    { title: string; priority: "low" | "medium" | "high" | "urgent"; due_date: string | null; member_id: string | null }[]
+  >([]);
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newTaskPriority, setNewTaskPriority] = useState<"low" | "medium" | "high" | "urgent">("medium");
+  const [newTaskDueDate, setNewTaskDueDate] = useState<Date | undefined>(undefined);
+  const [newTaskMemberId, setNewTaskMemberId] = useState<string>("");
 
-   // Customize section
-   const [customizeOpen, setCustomizeOpen] = useState(false);
+  // Customize section
+  const [customizeOpen, setCustomizeOpen] = useState(false);
 
-  const resetForm = () => {
-    setName("");
-    setStatus("active");
-    setDateRange(undefined);
-    setBudget("");
-    setClientName("");
-    setDescription("");
-    setLabels([]);
-    setLabelInput("");
-    setMemberIds([]);
-    setProjectColor("#8B5CF6");
-    setProjectIcon("FolderKanban");
-    setNewTasks([]);
-    setNewTaskTitle("");
-    setNewTaskPriority("medium");
-    setNewTaskDueDate(undefined);
-    setError(null);
+  // Form persistence key
+  const FORM_STORAGE_KEY = "projecthub-new-project-form";
+
+// Restore form state from sessionStorage when modal opens
+useEffect(() => {
+  if (open) {
+    const saved = sessionStorage.getItem(FORM_STORAGE_KEY);
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        setName(data.name || "");
+        setStatus(data.status || "active");
+        setDateRange(data.dateRange || undefined);
+        setBudget(data.budget || "");
+        setClientName(data.clientName || "");
+        setDescription(data.description || "");
+        setLabels(data.labels || []);
+        setMemberIds(data.memberIds || []);
+        setProjectColor(data.projectColor || "#8B5CF6");
+        setProjectIcon(data.projectIcon || "FolderKanban");
+        setNewTasks(data.newTasks || []);
+        setTasksOpen(data.tasksOpen || false);
+        setCustomizeOpen(data.customizeOpen || false);
+        setNewTaskTitle(data.newTaskTitle || "");
+        setNewTaskPriority(data.newTaskPriority || "medium");
+        setNewTaskDueDate(data.newTaskDueDate ? new Date(data.newTaskDueDate) : undefined);
+        setNewTaskMemberId(data.newTaskMemberId || "");
+      } catch {
+        // Ignore parse errors
+      }
+    }
+  }
+}, [open]);
+
+// Save form state before user leaves or switches tabs
+useEffect(() => {
+  if (!open) return;
+
+  const saveFormState = () => {
+    const data = {
+      name,
+      status,
+      dateRange,
+      budget,
+      clientName,
+      description,
+      labels,
+      memberIds,
+      projectColor,
+      projectIcon,
+      newTasks,
+      tasksOpen,
+      customizeOpen,
+      newTaskTitle,
+      newTaskPriority,
+      newTaskDueDate: newTaskDueDate ? newTaskDueDate.toISOString() : null,
+      newTaskMemberId,
+    };
+    sessionStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(data));
   };
 
-  const handleOpenChange = (newOpen: boolean) => {
-    if (!newOpen) resetForm();
-    onOpenChange(newOpen);
+  // Save when visibility changes (tab switch)
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'hidden') {
+      saveFormState();
+    } else if (document.visibilityState === 'visible') {
+      // Restore form when tab becomes visible again
+      const saved = sessionStorage.getItem(FORM_STORAGE_KEY);
+      if (saved) {
+        try {
+          const data = JSON.parse(saved);
+          setName(data.name || "");
+          setStatus(data.status || "active");
+          setDateRange(data.dateRange || undefined);
+          setBudget(data.budget || "");
+          setClientName(data.clientName || "");
+          setDescription(data.description || "");
+          setLabels(data.labels || []);
+          setMemberIds(data.memberIds || []);
+          setProjectColor(data.projectColor || "#8B5CF6");
+          setProjectIcon(data.projectIcon || "FolderKanban");
+          setNewTasks(data.newTasks || []);
+          setTasksOpen(data.tasksOpen || false);
+          setCustomizeOpen(data.customizeOpen || false);
+          setNewTaskTitle(data.newTaskTitle || "");
+          setNewTaskPriority(data.newTaskPriority || "medium");
+          setNewTaskDueDate(data.newTaskDueDate ? new Date(data.newTaskDueDate) : undefined);
+          setNewTaskMemberId(data.newTaskMemberId || "");
+        } catch {
+          // Ignore parse errors
+        }
+      }
+    }
   };
 
-  // Labels
+  // Save before page unload
+  const handleBeforeUnload = () => {
+    saveFormState();
+  };
+
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  window.addEventListener('beforeunload', handleBeforeUnload);
+
+  return () => {
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.removeEventListener('beforeunload', handleBeforeUnload);
+  };
+}, [
+  open,
+  name,
+  status,
+  dateRange,
+  budget,
+  clientName,
+  description,
+  labels,
+  memberIds,
+  projectColor,
+  projectIcon,
+  newTasks,
+  tasksOpen,
+  customizeOpen,
+  newTaskTitle,
+  newTaskPriority,
+  newTaskDueDate,
+  newTaskMemberId,
+]);
+
+const resetForm = () => {
+  setName("");
+  setStatus("active");
+  setDateRange(undefined);
+  setBudget("");
+  setClientName("");
+  setDescription("");
+  setLabels([]);
+  setLabelInput("");
+  setMemberIds([]);
+  setProjectColor("#8B5CF6");
+  setProjectIcon("FolderKanban");
+  setNewTasks([]);
+  setNewTaskTitle("");
+  setNewTaskPriority("medium");
+  setNewTaskDueDate(undefined);
+  setNewTaskMemberId("");
+  setError(null);
+  setTasksOpen(false);
+  setCustomizeOpen(false);
+  setSaving(false);
+  sessionStorage.removeItem(FORM_STORAGE_KEY);
+};
+
+const handleOpenChange = (newOpen: boolean) => {
+  if (!newOpen) resetForm();
+  onOpenChange(newOpen);
+};
+
+// Labels
   const handleAddLabel = () => {
     const trimmed = labelInput.trim().replace(/,/g, "");
     if (trimmed && !labels.includes(trimmed)) {
@@ -316,21 +451,23 @@ export default function ProjectFormModal({
     setLabelInput("");
   };
 
-  // Tasks
-  const handleAddTask = () => {
-    if (!newTaskTitle.trim()) return;
-    setNewTasks([
-      ...newTasks,
-      {
-        title: newTaskTitle.trim(),
-        priority: newTaskPriority,
-        due_date: newTaskDueDate ? format(newTaskDueDate, "yyyy-MM-dd") : null,
-      },
-    ]);
-    setNewTaskTitle("");
-    setNewTaskPriority("medium");
-    setNewTaskDueDate(undefined);
-  };
+// Tasks
+const handleAddTask = () => {
+  if (!newTaskTitle.trim()) return;
+  setNewTasks([
+    ...newTasks,
+    {
+      title: newTaskTitle.trim(),
+      priority: newTaskPriority,
+      due_date: newTaskDueDate ? format(newTaskDueDate, "yyyy-MM-dd") : null,
+      member_id: newTaskMemberId || null,
+    },
+  ]);
+  setNewTaskTitle("");
+  setNewTaskPriority("medium");
+  setNewTaskDueDate(undefined);
+  setNewTaskMemberId("");
+};
 
   const handleRemoveTask = (index: number) => {
     setNewTasks(newTasks.filter((_, i) => i !== index));
@@ -703,81 +840,183 @@ export default function ProjectFormModal({
                    <ChevronsUpDown className={cn("h-4 w-4 transition-transform", tasksOpen && "rotate-180")} />
                  </button>
 
-                 {tasksOpen && (
-                   <div className="border-t p-4 space-y-4">
-                     <div className="space-y-2">
-                       <Label>Add a task</Label>
-                       <div className="grid gap-2 sm:grid-cols-12">
-                         <input
-                           value={newTaskTitle}
-                           onChange={(e) => setNewTaskTitle(e.target.value)}
-                           placeholder="Task title"
-                           className="sm:col-span-5 h-10 rounded-md border border-input bg-background px-3 text-sm"
-                         />
-                         <Select value={newTaskPriority} onValueChange={(v) => setNewTaskPriority(v as "low" | "medium" | "high" | "urgent")}>
-                           <SelectTrigger className="sm:col-span-3 h-10">
-                             <SelectValue placeholder="Priority" />
-                           </SelectTrigger>
-                           <SelectContent>
-                             {["low", "medium", "high", "urgent"].map((p) => (
-                               <SelectItem key={p} value={p} className="capitalize">
-                                 {p}
-                               </SelectItem>
-                             ))}
-                           </SelectContent>
-                         </Select>
-                         <DateRangePicker
-                           date={{ from: newTaskDueDate ? new Date(newTaskDueDate) : undefined, to: undefined }}
-                           onDateChange={(range) => setNewTaskDueDate(range?.from || undefined)}
-                           numberOfMonths={1}
-                           showPresets={false}
-                           className="sm:col-span-3 [&_button]:h-10 [&_button]:text-sm"
-                         />
-                         <div className="sm:col-span-1">
-                           <Button
-                             type="button"
-                             size="icon"
-                             onClick={handleAddTask}
-                             disabled={!newTaskTitle.trim()}
-                             className="h-10 w-full sm:w-10"
-                           >
-                             <Plus className="h-4 w-4" />
-                           </Button>
-                         </div>
-                       </div>
-                     </div>
+            {tasksOpen && (
+              <div className="border-t p-4 space-y-4">
+                <div className="space-y-2">
+                  <Label>Add a task</Label>
+                  <div className="space-y-2">
+                    {/* Row 1: Title and Priority */}
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <input
+                        value={newTaskTitle}
+                        onChange={(e) => setNewTaskTitle(e.target.value)}
+                        placeholder="Task title"
+                        className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                      />
+                      <Select value={newTaskPriority} onValueChange={(v) => setNewTaskPriority(v as "low" | "medium" | "high" | "urgent")}>
+                        <SelectTrigger className="h-10">
+                          <SelectValue placeholder="Priority" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {["low", "medium", "high", "urgent"].map((p) => (
+                            <SelectItem key={p} value={p} className="capitalize">
+                              {p}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {/* Row 2: Due date, Assignee, and Add button */}
+                    <div className="grid gap-2 sm:grid-cols-12">
+                      <div className="sm:col-span-4">
+                        <DatePicker
+                          date={newTaskDueDate}
+                          onDateChange={(date) => setNewTaskDueDate(date)}
+                          placeholder="Due date"
+                          className="[&_button]:h-10 [&_button]:text-sm"
+                        />
+                      </div>
+                      <div className="sm:col-span-5">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="w-full justify-between h-10"
+                            >
+                              {newTaskMemberId ? (
+                                <div className="flex items-center gap-2">
+                                  {(() => {
+                                    const member = initialMembers.find(m => m.id === newTaskMemberId);
+                                    return member ? (
+                                      <>
+                                        <MemberAvatar
+                                          name={member.name}
+                                          email={member.email}
+                                          avatarUrl={member.avatar_url}
+                                          ring={false}
+                                          sizeClass="h-5 w-5"
+                                          textClass="text-[8px]"
+                                        />
+                                        <span>{member.name}</span>
+                                      </>
+                                    ) : (
+                                      <span className="text-muted-foreground">Assign to...</span>
+                                    );
+                                  })()}
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">Assign to...</span>
+                              )}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[300px] p-0" align="start">
+                            <Command>
+                              <CommandInput 
+                                placeholder="Search members..." 
+                                className="no-global-focus-ring h-11 border-0 outline-none ring-0 pr-8 focus:ring-0 focus-visible:ring-0 focus-visible:outline-none" 
+                              />
+                              <CommandList className="max-h-[200px]">
+                                <CommandEmpty>No members found.</CommandEmpty>
+                                <CommandGroup>
+                                  <CommandItem
+                                    value="__unassigned__"
+                                    onSelect={() => setNewTaskMemberId("")}
+                                  >
+                                    <Check className={cn("mr-2 h-4 w-4", !newTaskMemberId ? "opacity-100" : "opacity-0")} />
+                                    <span>Unassigned</span>
+                                  </CommandItem>
+                                  {initialMembers.map((member) => (
+                                    <CommandItem
+                                      key={member.id}
+                                      value={`${member.name} ${member.email || ""}`}
+                                      onSelect={() => setNewTaskMemberId(member.id)}
+                                    >
+                                      <Check className={cn("mr-2 h-4 w-4", newTaskMemberId === member.id ? "opacity-100" : "opacity-0")} />
+                                      <MemberAvatar
+                                        name={member.name}
+                                        email={member.email}
+                                        avatarUrl={member.avatar_url}
+                                        ring={false}
+                                        sizeClass="h-6 w-6"
+                                        textClass="text-[10px]"
+                                      />
+                                      <div className="ml-2 flex flex-col">
+                                        <span className="text-sm">{member.name}</span>
+                                        {member.email && (
+                                          <span className="text-xs text-muted-foreground">{member.email}</span>
+                                        )}
+                                      </div>
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <div className="sm:col-span-3">
+                        <Button
+                          type="button"
+                          onClick={handleAddTask}
+                          disabled={!newTaskTitle.trim()}
+                          className="h-10 w-full"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Task
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-                     {newTasks.length > 0 && (
-                       <div className="space-y-2">
-                         {newTasks.map((task, idx) => (
-                           <div key={idx} className="flex items-center gap-2 rounded-md border p-2">
-                             <div className="flex-1 min-w-0">
-                               <p className="text-sm font-medium truncate">{task.title}</p>
-                               <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                                 <Badge variant="outline" className="capitalize text-[10px]">
-                                   {task.priority}
-                                 </Badge>
-                                 {task.due_date && (
-                                   <span className="flex items-center gap-1">
-                                     <CalendarDays className="h-3 w-3" />
-                                     {task.due_date}
-                                   </span>
-                                 )}
-                               </div>
-                             </div>
-                             <Button
-                               type="button"
-                               variant="ghost"
-                               size="sm"
-                               onClick={() => handleRemoveTask(idx)}
-                               className="h-8 w-8 p-0"
-                             >
-                               <X className="h-4 w-4" />
-                             </Button>
-                           </div>
-                         ))}
-                       </div>
-                     )}
+                {newTasks.length > 0 && (
+                  <div className="space-y-2">
+                    {newTasks.map((task, idx) => {
+                      const assignedMember = task.member_id ? initialMembers.find(m => m.id === task.member_id) : null;
+                      return (
+                        <div key={idx} className="flex items-center gap-2 rounded-md border p-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{task.title}</p>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                              <Badge variant="outline" className="capitalize text-[10px]">
+                                {task.priority}
+                              </Badge>
+                              {task.due_date && (
+                                <span className="flex items-center gap-1">
+                                  <CalendarDays className="h-3 w-3" />
+                                  {task.due_date}
+                                </span>
+                              )}
+                              {assignedMember && (
+                                <span className="flex items-center gap-1">
+                                  <MemberAvatar
+                                    name={assignedMember.name}
+                                    email={assignedMember.email}
+                                    avatarUrl={assignedMember.avatar_url}
+                                    ring={false}
+                                    sizeClass="h-4 w-4"
+                                    textClass="text-[6px]"
+                                  />
+                                  <span className="truncate max-w-[100px]">{assignedMember.name}</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveTask(idx)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
                    </div>
                  )}
                </div>

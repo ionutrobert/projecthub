@@ -1992,10 +1992,13 @@ export default function ProjectsPage() {
       <ProjectFormModal
         open={addProjectOpen}
         onOpenChange={setAddProjectOpen}
-        onSuccess={(project) => {
-          handleProjectCreated(project);
-          router.refresh();
-        }}
+onSuccess={(project) => {
+                handleProjectCreated(project);
+                // Force immediate refresh to ensure project appears with server data
+                router.refresh();
+                // Trigger a re-fetch to ensure the new project appears in filtered views
+                setTimeout(() => fetchProjects(), 100);
+              }}
         initialMembers={members}
         initialClients={clients}
       />
